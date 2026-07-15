@@ -1,0 +1,1257 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>TINYTOPIA — a Polytopia-style 4X</title>
+<style>
+  :root{
+    --bg:#12161c; --panel:#1b222c; --panel2:#232c39; --ink:#eef2f7; --muted:#8ea0b5;
+    --line:#2c3644; --accent:#ffb347; --accent2:#5ec2ff; --good:#57d38c; --bad:#ff6b6b;
+    --gold:#ffd75e;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
+  html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;
+    user-select:none;-webkit-user-select:none}
+  canvas{display:block;position:absolute;inset:0;touch-action:none}
+  .mono{font-family:"Space Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
+
+  /* ---- top HUD ---- */
+  #hud{position:absolute;top:0;left:0;right:0;display:flex;gap:8px;align-items:center;
+    padding:8px 10px;pointer-events:none;z-index:5}
+  #hud > *{pointer-events:auto}
+  .badge{background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:7px 11px;display:flex;align-items:center;gap:7px;font-weight:700;font-size:14px;
+    box-shadow:0 2px 10px rgba(0,0,0,.35)}
+  .badge small{color:var(--muted);font-weight:600;font-size:11px}
+  .star{color:var(--gold)}
+  .btn{background:var(--panel);border:1px solid var(--line);color:var(--ink);
+    border-radius:12px;padding:8px 12px;font-weight:700;font-size:14px;cursor:pointer;
+    box-shadow:0 2px 10px rgba(0,0,0,.35);transition:transform .05s ease,background .15s}
+  .btn:hover{background:var(--panel2)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(180deg,#ffc266,#ff9d33);color:#241500;border-color:#ffb347}
+  .btn.primary:hover{filter:brightness(1.05)}
+  .btn[disabled]{opacity:.45;cursor:not-allowed}
+  .grow{flex:1}
+
+  /* ---- bottom action bar ---- */
+  #actions{position:absolute;left:0;right:0;bottom:0;z-index:5;display:flex;gap:8px;
+    justify-content:center;flex-wrap:wrap;padding:10px;pointer-events:none}
+  #actions > *{pointer-events:auto}
+  #ctxcard{position:absolute;left:10px;bottom:64px;z-index:5;max-width:260px;
+    background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:10px 12px;
+    box-shadow:0 6px 24px rgba(0,0,0,.5);display:none}
+  #ctxcard h3{margin:0 0 4px;font-size:15px}
+  #ctxcard .row{display:flex;justify-content:space-between;gap:10px;font-size:12px;color:var(--muted);margin:2px 0}
+  #ctxcard .row b{color:var(--ink)}
+  .hpbar{height:6px;background:#0d1116;border-radius:4px;overflow:hidden;margin-top:6px}
+  .hpbar > i{display:block;height:100%;background:var(--good)}
+
+  /* ---- zoom controls ---- */
+  #zoom{position:absolute;right:10px;bottom:64px;z-index:5;display:flex;flex-direction:column;gap:6px}
+  #zoom .btn{width:42px;height:42px;padding:0;font-size:20px;display:flex;align-items:center;justify-content:center}
+
+  /* ---- modal ---- */
+  .scrim{position:absolute;inset:0;background:rgba(6,9,13,.72);z-index:20;display:none;
+    align-items:center;justify-content:center;padding:16px;backdrop-filter:blur(2px)}
+  .scrim.on{display:flex}
+  .modal{background:var(--panel);border:1px solid var(--line);border-radius:18px;
+    width:min(560px,96vw);max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.6)}
+  .modal .mhead{padding:16px 18px 6px;position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line);z-index:1}
+  .modal .mhead h2{margin:0;font-size:20px}
+  .modal .mhead p{margin:4px 0 10px;color:var(--muted);font-size:13px}
+  .modal .mbody{padding:14px 18px 18px}
+  .close{float:right;cursor:pointer;color:var(--muted);font-size:22px;line-height:1;margin-top:-2px}
+
+  /* tech / build grids */
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:11px 12px;cursor:pointer;
+    transition:border-color .15s,transform .05s}
+  .card:hover{border-color:var(--accent)}
+  .card:active{transform:translateY(1px)}
+  .card.locked{opacity:.5;cursor:not-allowed}
+  .card.owned{border-color:var(--good);cursor:default}
+  .card .t{font-weight:800;font-size:14px;display:flex;justify-content:space-between;align-items:center;gap:6px}
+  .card .d{font-size:11.5px;color:var(--muted);margin-top:4px;line-height:1.35}
+  .cost{color:var(--gold);font-weight:800;font-size:13px;white-space:nowrap}
+  .pill{font-size:10px;font-weight:800;padding:2px 7px;border-radius:999px;background:#0d1116;color:var(--muted);border:1px solid var(--line)}
+
+  /* start / end screens */
+  .center{max-width:520px;text-align:center}
+  .center h1{font-size:38px;margin:0 0 2px;letter-spacing:-1px;
+    background:linear-gradient(90deg,#ffd75e,#ff9d33,#5ec2ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .center .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
+  .field{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0;
+    background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
+  .field label{font-weight:700;font-size:14px}
+  .seg{display:flex;gap:4px;background:#0d1116;border-radius:10px;padding:3px}
+  .seg button{border:0;background:transparent;color:var(--muted);font-weight:800;font-size:13px;
+    padding:6px 12px;border-radius:8px;cursor:pointer}
+  .seg button.on{background:var(--accent);color:#241500}
+  .tribes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 14px}
+  .tribe{border:2px solid var(--line);border-radius:12px;padding:9px 6px;cursor:pointer;text-align:center}
+  .tribe.on{border-color:var(--accent)}
+  .tribe .dot{width:22px;height:22px;border-radius:6px;margin:0 auto 5px}
+  .tribe .n{font-weight:800;font-size:12px}
+  .tribe .s{font-size:10px;color:var(--muted)}
+
+  #toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:15;
+    display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
+  .toast{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
+    border-radius:10px;padding:8px 14px;font-weight:700;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.5);
+    animation:pop .3s ease}
+  @keyframes pop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
+  .help li{margin:6px 0;font-size:13px;line-height:1.5}
+  .kbd{background:#0d1116;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:11px}
+  @media (max-width:480px){ #ctxcard{max-width:200px} .center h1{font-size:30px} }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- top HUD -->
+<div id="hud">
+  <div class="badge"><span>Turn</span><b id="hudTurn" class="mono">1</b></div>
+  <div class="badge"><span class="star">★</span><b id="hudStars" class="mono">0</b><small id="hudInc">+0/t</small></div>
+  <button class="btn" id="btnTech">🔬 Tech</button>
+  <div class="grow"></div>
+  <button class="btn" id="btnHelp">?</button>
+  <button class="btn" id="btnMenu">☰</button>
+</div>
+
+<!-- context card -->
+<div id="ctxcard"></div>
+
+<!-- zoom -->
+<div id="zoom">
+  <button class="btn" id="btnZin">+</button>
+  <button class="btn" id="btnZout">−</button>
+</div>
+
+<!-- bottom actions -->
+<div id="actions">
+  <button class="btn primary" id="btnEnd">End Turn ▶</button>
+</div>
+
+<div id="toast"></div>
+
+<!-- generic modal -->
+<div class="scrim" id="scrim">
+  <div class="modal">
+    <div class="mhead"><span class="close" id="mClose">×</span><h2 id="mTitle">Title</h2><p id="mSub"></p></div>
+    <div class="mbody" id="mBody"></div>
+  </div>
+</div>
+
+<!-- start screen -->
+<div class="scrim on" id="startScreen">
+  <div class="modal">
+    <div class="mbody center">
+      <h1>TINYTOPIA</h1>
+      <p class="sub">A pocket-sized, Polytopia-style turn-based 4X. Explore, expand, research, conquer.</p>
+      <div class="tribes" id="tribeGrid"></div>
+      <div class="field"><label>Map size</label>
+        <div class="seg" id="segSize">
+          <button data-v="9">Tiny</button><button data-v="12" class="on">Small</button><button data-v="16">Large</button>
+        </div></div>
+      <div class="field"><label>Opponents</label>
+        <div class="seg" id="segAI">
+          <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button>
+        </div></div>
+      <div class="field"><label>Mode</label>
+        <div class="seg" id="segMode">
+          <button data-v="dom" class="on">Domination</button><button data-v="score">Perfection (20t)</button>
+        </div></div>
+      <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:6px">Found your tribe ▶</button>
+      <button class="btn" id="btnContinue" style="width:100%;margin-top:8px;display:none">Continue saved game</button>
+    </div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================================
+   TINYTOPIA — a single-file, Polytopia-style 4X on <canvas>. Vanilla JS.
+   Sections:  DATA · RNG · MAPGEN · STATE · GEOMETRY · FOG · RENDER
+              INPUT · RULES(move/combat/capture/harvest) · TECH · CITY · AI
+              TURN · SAVE · UI
+   ==========================================================================*/
+
+/* ---------------------------------- DATA --------------------------------- */
+const T = { FIELD:0, FOREST:1, MOUNTAIN:2, WATER:3 };
+const R = { NONE:0, FRUIT:1, GAME:2, METAL:3, FISH:4 };
+
+const TERRAIN = {
+  [T.FIELD]:    {name:"Field",    move:1,  defBonus:1.0, top:"#5a8f3d", bot:"#3f6d2b"},
+  [T.FOREST]:   {name:"Forest",   move:1,  defBonus:1.5, top:"#2f6b34", bot:"#1e4a24"},
+  [T.MOUNTAIN]: {name:"Mountain", move:2,  defBonus:1.5, top:"#8a8f9a", bot:"#5b606b"},
+  [T.WATER]:    {name:"Water",    move:Infinity, defBonus:1.0, top:"#2f7fc4", bot:"#1f5c95"},
+};
+
+const RESOURCE = {
+  [R.FRUIT]: {name:"Fruit",  icon:"🍎", tech:"organization", pop:1, on:T.FIELD},
+  [R.GAME]:  {name:"Game",   icon:"🦌", tech:"hunting",      pop:1, on:T.FOREST},
+  [R.METAL]: {name:"Metal",  icon:"⛏",  tech:"mining",       pop:2, on:T.MOUNTAIN},
+  [R.FISH]:  {name:"Fish",   icon:"🐟", tech:"fishing",      pop:1, on:T.WATER},
+};
+
+// Unit archetypes. atk/def are Polytopia-style force values; hp in tenths-of-heart *10.
+const UNITS = {
+  warrior:  {name:"Warrior",  icon:"⚔", cost:2,  hp:10, atk:2,   def:2, move:1, range:1, tech:null,          dash:false},
+  archer:   {name:"Archer",   icon:"🏹", cost:3,  hp:10, atk:2,   def:1, move:1, range:2, tech:"archery",     dash:false},
+  rider:    {name:"Rider",    icon:"🐎", cost:3,  hp:10, atk:2,   def:1, move:2, range:1, tech:"riding",      dash:true},
+  defender: {name:"Defender", icon:"🛡", cost:3,  hp:15, atk:1,   def:3, move:1, range:1, tech:"shields",     dash:false},
+  swordsman:{name:"Swordsman",icon:"🗡", cost:5,  hp:15, atk:3,   def:3, move:1, range:1, tech:"smithery",    dash:false},
+  catapult: {name:"Catapult", icon:"💥", cost:8,  hp:10, atk:4,   def:0, move:1, range:3, tech:"mathematics", dash:false},
+  knight:   {name:"Knight",   icon:"♞", cost:8,  hp:10, atk:3.5, def:1, move:3, range:1, tech:"chivalry",    dash:true},
+  giant:    {name:"Giant",    icon:"👹", cost:99, hp:40, atk:5,   def:4, move:1, range:1, tech:null,          dash:false},
+};
+
+// Tech tree. tier drives cost; unlocks are informational + gate units/harvest/actions.
+const TECHS = {
+  climbing:    {name:"Climbing",    tier:1, req:null,          blurb:"Cross mountains; +sight from peaks."},
+  hunting:     {name:"Hunting",     tier:1, req:null,          blurb:"Harvest Game from forests (+pop)."},
+  fishing:     {name:"Fishing",     tier:1, req:null,          blurb:"Harvest Fish from water (+pop)."},
+  organization:{name:"Organization",tier:1, req:null,          blurb:"Harvest Fruit from fields (+pop)."},
+  riding:      {name:"Riding",      tier:1, req:null,          blurb:"Train Riders — fast, can dash & retreat."},
+  mining:      {name:"Mining",      tier:2, req:"climbing",    blurb:"Mine Metal from mountains (+2 pop)."},
+  archery:     {name:"Archery",     tier:2, req:"hunting",     blurb:"Train Archers — range 2."},
+  forestry:    {name:"Forestry",    tier:2, req:"hunting",     blurb:"Unlocks Mathematics."},
+  farming:     {name:"Farming",     tier:2, req:"organization",blurb:"+1 income at every city."},
+  shields:     {name:"Shields",     tier:2, req:"riding",      blurb:"Train Defenders — 3 defense."},
+  smithery:    {name:"Smithery",    tier:3, req:"mining",      blurb:"Train Swordsmen — 3 atk / 3 def."},
+  mathematics: {name:"Mathematics", tier:3, req:"forestry",    blurb:"Train Catapults — range 3 siege."},
+  chivalry:    {name:"Chivalry",    tier:3, req:"shields",     blurb:"Train Knights — move 3, chain kills."},
+};
+
+const TRIBES = [
+  {id:"imperius", name:"Imperius", color:"#4f8cff", start:"organization"},
+  {id:"bardur",   name:"Bardur",   color:"#e0533d", start:"hunting"},
+  {id:"xinxi",    name:"Xin-xi",   color:"#c04ecb", start:"climbing"},
+  {id:"oumaji",   name:"Oumaji",   color:"#e9c33a", start:"riding"},
+  {id:"kickoo",   name:"Kickoo",   color:"#2fbfa8", start:"fishing"},
+  {id:"hoodrick", name:"Hoodrick", color:"#a9793f", start:"archery"},
+];
+
+const CITY_DEF_BONUS = 1.5, WALL_DEF_BONUS = 4.0;
+
+/* ------------------------------- RNG (seeded) ----------------------------- */
+let _seed = 1;
+function srand(s){ _seed = (s>>>0) || 1; }
+function rnd(){ // mulberry32
+  _seed |= 0; _seed = (_seed + 0x6D2B79F5) | 0;
+  let t = Math.imul(_seed ^ (_seed>>>15), 1 | _seed);
+  t = (t + Math.imul(t ^ (t>>>7), 61 | t)) ^ t;
+  return ((t ^ (t>>>14)) >>> 0) / 4294967296;
+}
+const ri = (n)=> Math.floor(rnd()*n);
+const pick = (a)=> a[ri(a.length)];
+
+/* --------------------------------- STATE --------------------------------- */
+let G = null;   // whole game state
+const idx = (x,y)=> y*G.N + x;
+const inb = (x,y)=> x>=0 && y>=0 && x<G.N && y<G.N;
+const tileAt = (x,y)=> G.tiles[idx(x,y)];
+
+function newGame(opts){
+  srand((Date.now() ^ (Math.random()*1e9)) >>> 0);
+  const N = opts.size;
+  const tiles = new Array(N*N);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    tiles[y*N+x] = {x,y, t:T.FIELD, res:R.NONE};
+  }
+  G = {
+    N, mode:opts.mode, turn:1, current:0, over:false, winner:null,
+    tiles, units:[], cities:[], players:[], nextUid:1,
+    sel:null, moveTiles:null, atkTiles:null, animLog:[],
+    cam:{x:0,y:0,z:1}, mapMode:opts.mode
+  };
+  // --- players ---
+  const humanTribe = TRIBES.find(t=>t.id===opts.tribe) || TRIBES[0];
+  const usedTribes = new Set([humanTribe.id]);
+  const roster = [humanTribe];
+  for(let i=0;i<opts.ai;i++){
+    let t; do{ t = pick(TRIBES); }while(usedTribes.has(t.id) && usedTribes.size < TRIBES.length);
+    usedTribes.add(t.id); roster.push(t);
+  }
+  roster.forEach((tr,i)=>{
+    G.players.push({
+      id:i, tribe:tr.id, name:tr.name, color:tr.color, human:(i===0),
+      stars:5, techs:new Set([tr.start]), income:0, alive:true, revealed:new Set(), visible:new Set(), score:0
+    });
+  });
+  genTerrain();
+  placeCapitals();
+  placeResources();
+  scatterVillages();
+  recomputeIncome();
+  for(const p of G.players) recomputeVision(p.id);
+  centerCameraOn(capitalOf(0));
+  return G;
+}
+
+/* -------------------------------- MAPGEN --------------------------------- */
+function genTerrain(){
+  const N=G.N;
+  // seed a few forest & mountain & water blobs via random walks
+  const blob=(kind,count,size)=>{
+    for(let c=0;c<count;c++){
+      let x=ri(N), y=ri(N);
+      for(let s=0;s<size;s++){
+        if(inb(x,y)) tileAt(x,y).t = kind;
+        x += ri(3)-1; y += ri(3)-1;
+        x=Math.max(0,Math.min(N-1,x)); y=Math.max(0,Math.min(N-1,y));
+      }
+    }
+  };
+  blob(T.FOREST,   Math.round(N*0.9), Math.round(N*1.1));
+  blob(T.MOUNTAIN, Math.round(N*0.5), Math.round(N*0.7));
+  blob(T.WATER,    Math.round(N*0.45),Math.round(N*0.6));
+}
+
+function placeResources(){
+  const N=G.N;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=tileAt(x,y);
+    if(t.res!==R.NONE) continue;
+    const roll=rnd();
+    if(t.t===T.FIELD    && roll<0.20) t.res=R.FRUIT;
+    else if(t.t===T.FOREST   && roll<0.22) t.res=R.GAME;
+    else if(t.t===T.MOUNTAIN && roll<0.28) t.res=R.METAL;
+    else if(t.t===T.WATER){
+      // fish only near land so a city can reach it
+      if(roll<0.30 && hasLandNeighbor(x,y)) t.res=R.FISH;
+    }
+  }
+}
+function hasLandNeighbor(x,y){
+  for(const[dx,dy]of NB8) if(inb(x+dx,y+dy) && tileAt(x+dx,y+dy).t!==T.WATER) return true;
+  return false;
+}
+
+function placeCapitals(){
+  const N=G.N, n=G.players.length;
+  // spread starting spots around the map edges/corners
+  const spots=[];
+  const m=Math.max(1,Math.floor(N*0.18));
+  const corners=[[m,m],[N-1-m,N-1-m],[N-1-m,m],[m,N-1-m]];
+  const edges=[[Math.floor(N/2),m],[Math.floor(N/2),N-1-m],[m,Math.floor(N/2)],[N-1-m,Math.floor(N/2)]];
+  const order = corners.concat(edges);
+  for(let i=0;i<n;i++){
+    let [cx,cy]=order[i%order.length];
+    [cx,cy]=findLandNear(cx,cy);
+    spots.push([cx,cy]);
+  }
+  spots.forEach(([cx,cy],i)=>{
+    const t=tileAt(cx,cy); t.t=T.FIELD; t.res=R.NONE;
+    // clear a friendly ring
+    for(const[dx,dy]of NB8){ if(inb(cx+dx,cy+dy)){ const q=tileAt(cx+dx,cy+dy); if(q.t===T.WATER)q.t=T.FIELD; } }
+    const city=makeCity(cx,cy,i,true);
+    G.cities.push(city);
+    spawnUnit("warrior", cx, cy, i);
+  });
+}
+function findLandNear(x,y){
+  if(inb(x,y)&&tileAt(x,y).t!==T.WATER) return [x,y];
+  for(let r=1;r<G.N;r++)for(const[dx,dy]of ring(r)){
+    const nx=x+dx,ny=y+dy;
+    if(inb(nx,ny)&&tileAt(nx,ny).t!==T.WATER) return [nx,ny];
+  }
+  return [Math.min(x,G.N-1),Math.min(y,G.N-1)];
+}
+function ring(r){ const o=[]; for(let dx=-r;dx<=r;dx++)for(let dy=-r;dy<=r;dy++) if(Math.max(Math.abs(dx),Math.abs(dy))===r)o.push([dx,dy]); return o; }
+
+function scatterVillages(){
+  const N=G.N, want=Math.max(2,Math.round(N*N*0.03));
+  let tries=0;
+  while(countVillages()<want && tries++<N*N*4){
+    const x=ri(N),y=ri(N), t=tileAt(x,y);
+    if(t.t===T.WATER||t.t===T.MOUNTAIN) continue;
+    if(cityAt(x,y)) continue;
+    if(nearAnyCity(x,y,2)) continue;
+    G.cities.push(makeCity(x,y,-1,false)); // owner -1 = neutral village
+  }
+}
+function countVillages(){ return G.cities.filter(c=>c.owner<0).length; }
+function nearAnyCity(x,y,r){ return G.cities.some(c=>Math.max(Math.abs(c.x-x),Math.abs(c.y-y))<=r); }
+
+/* --------------------------------- CITIES -------------------------------- */
+function makeCity(x,y,owner,capital){
+  const c={ x,y, owner, capital, level: capital?1:0, pop:0, wall:false, income:0,
+            territory:[], id:G.nextUid++ };
+  computeTerritory(c);
+  return c;
+}
+function computeTerritory(c){
+  c.territory=[[c.x,c.y]];
+  for(const[dx,dy]of NB8){ const nx=c.x+dx,ny=c.y+dy; if(inb(nx,ny)) c.territory.push([nx,ny]); }
+  if(c.borderGrown){
+    const extra=[];
+    for(const[tx,ty]of c.territory) for(const[dx,dy]of NB8){
+      const nx=tx+dx,ny=ty+dy;
+      if(inb(nx,ny) && !c.territory.some(([a,b])=>a===nx&&b===ny) && !extra.some(([a,b])=>a===nx&&b===ny)) extra.push([nx,ny]);
+    }
+    c.territory=c.territory.concat(extra);
+  }
+}
+const cityAt=(x,y)=> G.cities.find(c=>c.x===x&&c.y===y);
+const capitalOf=(pid)=> G.cities.find(c=>c.owner===pid&&c.capital);
+
+/* --------------------------------- UNITS --------------------------------- */
+function spawnUnit(type,x,y,owner){
+  const def=UNITS[type];
+  const u={ uid:G.nextUid++, type, owner, x, y, hp:def.hp, maxhp:def.hp,
+            movesLeft:def.move, acted:false, vet:false };
+  G.units.push(u);
+  return u;
+}
+const unitAt=(x,y)=> G.units.find(u=>u.x===x&&u.y===y);
+
+/* ------------------------------- GEOMETRY -------------------------------- */
+const NB8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
+const cheb=(ax,ay,bx,by)=> Math.max(Math.abs(ax-bx),Math.abs(ay-by));
+
+// BFS reachable tiles for a unit given movement points & terrain, with ZOC.
+function reachable(u){
+  const def=UNITS[u.type];
+  const p=G.players[u.owner];
+  const canClimb=p.techs.has("climbing");
+  const start=idx(u.x,u.y);
+  const dist=new Map([[start,0]]);
+  const q=[[u.x,u.y,0]];
+  const out=[];
+  while(q.length){
+    const [x,y,d]=q.shift();
+    for(const[dx,dy]of NB8){
+      const nx=x+dx,ny=y+dy;
+      if(!inb(nx,ny)) continue;
+      const tt=tileAt(nx,ny);
+      if(tt.t===T.WATER) continue;                       // land only
+      if(tt.t===T.MOUNTAIN && !canClimb) continue;
+      const step=TERRAIN[tt.t].move;
+      const other=unitAt(nx,ny);
+      if(other) continue;                                // can't move through/into occupied
+      const nd=d+step;
+      if(nd>def.move) continue;
+      const key=idx(nx,ny);
+      if(dist.has(key) && dist.get(key)<=nd) continue;
+      dist.set(key,nd);
+      out.push([nx,ny]);
+      // Zone of control: stop if this tile is adjacent to an enemy
+      if(!adjacentToEnemy(nx,ny,u.owner)) q.push([nx,ny,nd]);
+    }
+  }
+  return out;
+}
+function adjacentToEnemy(x,y,owner){
+  for(const[dx,dy]of NB8){ const nx=x+dx,ny=y+dy; if(inb(nx,ny)){ const e=unitAt(nx,ny); if(e && e.owner!==owner) return true; } }
+  return false;
+}
+// Attack targets in range (measured from current position; ranged don't need adjacency)
+function targetsFor(u){
+  const def=UNITS[u.type];
+  const out=[];
+  for(const e of G.units){
+    if(e.owner===u.owner) continue;
+    if(cheb(u.x,u.y,e.x,e.y)<=def.range) out.push(e);
+  }
+  return out;
+}
+
+/* ----------------------------------- FOG --------------------------------- */
+function recomputeVision(pid){
+  const p=G.players[pid];
+  p.visible=new Set();
+  const add=(x,y,r)=>{ for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
+    const nx=x+dx,ny=y+dy; if(inb(nx,ny) && cheb(x,y,nx,ny)<=r){ const k=idx(nx,ny); p.visible.add(k); p.revealed.add(k);} } };
+  for(const u of G.units) if(u.owner===pid){ const onMtn=tileAt(u.x,u.y).t===T.MOUNTAIN; add(u.x,u.y, onMtn?2:1); }
+  for(const c of G.cities) if(c.owner===pid){ add(c.x,c.y, c.capital?2:1); if(c.explorer) add(c.x,c.y,5); }
+}
+
+/* -------------------------------- RENDER --------------------------------- */
+const cv=document.getElementById("c"), ctx=cv.getContext("2d");
+let DPR=1, TS=54; // base tile size in world units
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
+  cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px";
+}
+addEventListener("resize",resize); resize();
+
+function centerCameraOn(c){
+  if(!c) return;
+  G.cam.z=1;
+  G.cam.x = c.x*TS + TS/2 - innerWidth/2;
+  G.cam.y = c.y*TS + TS/2 - innerHeight/2;
+}
+const worldToScreen=(wx,wy)=>({x:(wx-G.cam.x)*G.cam.z, y:(wy-G.cam.y)*G.cam.z});
+const screenToWorld=(sx,sy)=>({x:sx/G.cam.z+G.cam.x, y:sy/G.cam.z+G.cam.y});
+function tileFromScreen(sx,sy){
+  const w=screenToWorld(sx,sy);
+  const x=Math.floor(w.x/TS), y=Math.floor(w.y/TS);
+  return inb(x,y)?{x,y}:null;
+}
+
+function draw(){
+  if(!G){ requestAnimationFrame(draw); return; }
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.fillStyle="#0c0f14"; ctx.fillRect(0,0,innerWidth,innerHeight);
+  const z=G.cam.z, ts=TS*z;
+  const p=G.players[0];
+  const seenTeam = viewingPlayer();
+
+  // visible tile window
+  const x0=Math.max(0,Math.floor(G.cam.x/TS)), y0=Math.max(0,Math.floor(G.cam.y/TS));
+  const x1=Math.min(G.N-1,Math.floor((G.cam.x+innerWidth/z)/TS));
+  const y1=Math.min(G.N-1,Math.floor((G.cam.y+innerHeight/z)/TS));
+
+  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
+    const s=worldToScreen(x*TS,y*TS);
+    const k=idx(x,y);
+    const explored=seenTeam.revealed.has(k), visible=seenTeam.visible.has(k);
+    if(!explored){ ctx.fillStyle="#0c0f14"; ctx.fillRect(s.x,s.y,ts+1,ts+1); continue; }
+    const t=tileAt(x,y), ter=TERRAIN[t.t];
+    // tile body with vertical gradient
+    const g=ctx.createLinearGradient(0,s.y,0,s.y+ts);
+    g.addColorStop(0,ter.top); g.addColorStop(1,ter.bot);
+    ctx.fillStyle=g; ctx.fillRect(s.x,s.y,ts+1,ts+1);
+    // grid line
+    ctx.strokeStyle="rgba(0,0,0,.18)"; ctx.lineWidth=1; ctx.strokeRect(s.x+.5,s.y+.5,ts,ts);
+    // mountain cap / forest tufts (little flair)
+    if(t.t===T.MOUNTAIN){ ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath();
+      ctx.moveTo(s.x+ts*.5,s.y+ts*.2); ctx.lineTo(s.x+ts*.68,s.y+ts*.52); ctx.lineTo(s.x+ts*.32,s.y+ts*.52); ctx.closePath(); ctx.fill(); }
+    if(t.t===T.WATER){ ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.beginPath();
+      ctx.moveTo(s.x+ts*.2,s.y+ts*.6); ctx.quadraticCurveTo(s.x+ts*.35,s.y+ts*.5,s.x+ts*.5,s.y+ts*.6);
+      ctx.quadraticCurveTo(s.x+ts*.65,s.y+ts*.7,s.x+ts*.8,s.y+ts*.6); ctx.stroke(); }
+    // resource icon
+    if(t.res!==R.NONE && ts>26){ ctx.font=`${Math.round(ts*0.4)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
+      ctx.fillText(RESOURCE[t.res].icon, s.x+ts*.5, s.y+ts*.5); }
+    // fog dimming for explored-but-not-visible
+    if(!visible){ ctx.fillStyle="rgba(6,9,13,.45)"; ctx.fillRect(s.x,s.y,ts+1,ts+1); }
+  }
+
+  // territory outlines for viewer's cities
+  for(const c of G.cities){
+    if(!seenTeam.revealed.has(idx(c.x,c.y))) continue;
+    if(c.owner<0) continue;
+    ctx.strokeStyle = hexA(G.players[c.owner].color,.5); ctx.lineWidth=2;
+    for(const[tx,ty]of c.territory){
+      if(!inb(tx,ty)) continue;
+      const s=worldToScreen(tx*TS,ty*TS);
+      ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4);
+    }
+  }
+
+  // cities
+  for(const c of G.cities){
+    const k=idx(c.x,c.y);
+    if(!seenTeam.revealed.has(k)) continue;
+    const s=worldToScreen(c.x*TS,c.y*TS);
+    drawCity(c,s.x,s.y,ts, seenTeam.visible.has(k));
+  }
+
+  // movement / attack highlights (only for viewer during their turn)
+  if(isHumanTurn() && G.sel){
+    if(G.moveTiles) for(const[x,y]of G.moveTiles){ const s=worldToScreen(x*TS,y*TS);
+      ctx.fillStyle="rgba(94,194,255,.28)"; ctx.fillRect(s.x+2,s.y+2,ts-4,ts-4);
+      ctx.strokeStyle="rgba(94,194,255,.8)"; ctx.lineWidth=2; ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4); }
+    if(G.atkTiles) for(const e of G.atkTiles){ const s=worldToScreen(e.x*TS,e.y*TS);
+      ctx.strokeStyle="rgba(255,107,107,.95)"; ctx.lineWidth=3; ctx.strokeRect(s.x+3,s.y+3,ts-6,ts-6); }
+    const s=worldToScreen(G.sel.x*TS,G.sel.y*TS);
+    ctx.strokeStyle="var(--gold)"; ctx.strokeStyle="#ffd75e"; ctx.lineWidth=3; ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4);
+  }
+
+  // units
+  for(const u of G.units){
+    const k=idx(u.x,u.y);
+    if(!seenTeam.visible.has(k) && u.owner!==viewIndex()) { if(!seenTeam.visible.has(k)) continue; }
+    const s=worldToScreen(u.x*TS,u.y*TS);
+    drawUnit(u,s.x,s.y,ts);
+  }
+
+  requestAnimationFrame(draw);
+}
+
+function drawCity(c,x,y,ts,visible){
+  const col = c.owner<0? "#9aa6b4" : G.players[c.owner].color;
+  const cx=x+ts*.5, cy=y+ts*.55, w=ts*.42;
+  // base
+  ctx.fillStyle= visible? col : hexA(col,.6);
+  roundRect(cx-w/2, cy-w*0.42, w, w*0.7, 4); ctx.fill();
+  // roof
+  ctx.beginPath(); ctx.moveTo(cx-w/2-2,cy-w*0.42); ctx.lineTo(cx,cy-w*0.9); ctx.lineTo(cx+w/2+2,cy-w*0.42); ctx.closePath();
+  ctx.fillStyle= shade(col,-30); ctx.fill();
+  // wall ring
+  if(c.wall){ ctx.strokeStyle="#ffd75e"; ctx.lineWidth=2; ctx.strokeRect(x+ts*.15,y+ts*.15,ts*.7,ts*.7); }
+  // capital star
+  if(c.capital){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(ts*.24)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("★",cx,y+ts*.16); }
+  // level pips / neutral mark
+  if(ts>24){
+    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle="#0c0f14";
+    ctx.font=`bold ${Math.round(ts*.24)}px Inter,sans-serif`;
+    ctx.fillText(c.owner<0? "·" : String(c.level), cx, cy-w*0.05);
+  }
+}
+
+function drawUnit(u,x,y,ts){
+  const def=UNITS[u.type], col=G.players[u.owner].color;
+  const cx=x+ts*.5, cy=y+ts*.5, r=ts*.32;
+  // shadow
+  ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(cx,cy+r*.7,r*.9,r*.35,0,0,7); ctx.fill();
+  // token
+  ctx.fillStyle=col; ctx.strokeStyle= (u.owner===0? "#fff":"#0c0f14"); ctx.lineWidth=2;
+  ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); ctx.stroke();
+  // "done" dim
+  if(u.owner===viewIndex() && isHumanTurn() && u.acted && u.movesLeft<=0){ ctx.fillStyle="rgba(6,9,13,.5)"; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); }
+  // glyph
+  ctx.fillStyle= pickText(col); ctx.font=`${Math.round(r*1.15)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(def.icon,cx,cy+1);
+  // hp bar
+  if(u.hp<u.maxhp && ts>22){
+    const bw=r*2, bx=cx-r, by=cy-r-6;
+    ctx.fillStyle="#0c0f14"; ctx.fillRect(bx,by,bw,4);
+    ctx.fillStyle= u.hp/u.maxhp>.5? "#57d38c" : (u.hp/u.maxhp>.25?"#ffd75e":"#ff6b6b");
+    ctx.fillRect(bx,by,bw*(u.hp/u.maxhp),4);
+  }
+  if(u.vet && ts>22){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(r*.7)}px serif`; ctx.fillText("✦",cx+r*.8,cy-r*.7); }
+}
+
+/* helpers */
+function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+function hexA(hex,a){ const c=hx(hex); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
+function shade(hex,d){ const c=hx(hex); return `rgb(${clamp(c[0]+d)},${clamp(c[1]+d)},${clamp(c[2]+d)})`; }
+function pickText(hex){ const c=hx(hex); const lum=0.299*c[0]+0.587*c[1]+0.114*c[2]; return lum>150?"#0c0f14":"#fff"; }
+function hx(h){ h=h.replace("#",""); if(h.length===3)h=h.split("").map(c=>c+c).join(""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+const clamp=(v)=>Math.max(0,Math.min(255,v));
+
+function viewIndex(){ return 0; }            // human always views as player 0
+function viewingPlayer(){ return G.players[0]; }
+function isHumanTurn(){ return G.current===0 && !G.over; }
+
+/* --------------------------------- INPUT --------------------------------- */
+let drag=null, dragged=false;
+cv.addEventListener("pointerdown",e=>{ drag={x:e.clientX,y:e.clientY,cx:G.cam.x,cy:G.cam.y}; dragged=false; cv.setPointerCapture(e.pointerId); });
+cv.addEventListener("pointermove",e=>{
+  if(!drag) return;
+  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
+  if(Math.abs(dx)+Math.abs(dy)>6) dragged=true;
+  G.cam.x=drag.cx-dx/G.cam.z; G.cam.y=drag.cy-dy/G.cam.z;
+});
+cv.addEventListener("pointerup",e=>{
+  if(!dragged){ handleTap(e.clientX,e.clientY); }
+  drag=null;
+});
+cv.addEventListener("wheel",e=>{ e.preventDefault(); zoomAt(e.clientX,e.clientY, e.deltaY<0?1.12:1/1.12); },{passive:false});
+function zoomAt(sx,sy,f){
+  const before=screenToWorld(sx,sy);
+  G.cam.z=Math.max(.5,Math.min(2.4,G.cam.z*f));
+  const after=screenToWorld(sx,sy);
+  G.cam.x+=before.x-after.x; G.cam.y+=before.y-after.y;
+}
+document.getElementById("btnZin").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1.2);
+document.getElementById("btnZout").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1/1.2);
+
+function handleTap(sx,sy){
+  if(G.over || !isHumanTurn()) return;
+  const c=tileFromScreen(sx,sy); if(!c) return;
+  const {x,y}=c;
+
+  // 1) If a unit is selected and we tapped an attack target -> attack
+  if(G.sel && G.atkTiles){
+    const tgt=G.atkTiles.find(e=>e.x===x&&e.y===y);
+    if(tgt){ doAttack(G.sel, tgt); return; }
+  }
+  // 2) If a unit is selected and we tapped a reachable tile -> move
+  if(G.sel && G.moveTiles && G.moveTiles.some(([mx,my])=>mx===x&&my===y)){
+    doMove(G.sel,x,y); return;
+  }
+  // 3) Select a friendly unit
+  const u=unitAt(x,y);
+  if(u && u.owner===0){ selectUnit(u); return; }
+  // 4) Select own city
+  const city=cityAt(x,y);
+  if(city && city.owner===0){ clearSel(); openCity(city); return; }
+  // 5) tapping a resource tile in your territory -> context card w/ harvest
+  clearSel();
+  showTileCard(x,y);
+}
+
+function selectUnit(u){
+  G.sel=u;
+  G.moveTiles = (u.movesLeft>0 && !u.acted)? reachable(u) : null;
+  G.atkTiles  = (!u.attacked)? visibleTargets(u) : null;
+  renderUnitCard(u);
+  renderActions();
+}
+function visibleTargets(u){ return targetsFor(u).filter(e=>viewingPlayer().visible.has(idx(e.x,e.y))); }
+function clearSel(){ G.sel=null; G.moveTiles=null; G.atkTiles=null; ctxcard.style.display="none"; renderActions(); }
+
+/* ------------------------------- RULES ----------------------------------- */
+function doMove(u,x,y){
+  // compute path cost via reachable BFS distance (recompute quick)
+  u.x=x; u.y=y;
+  u.movesLeft=0;                          // simple: any move spends the turn's movement
+  recomputeVision(u.owner);
+  // dash units may still attack after moving
+  const canAtk = UNITS[u.type].dash && !u.attacked;
+  G.moveTiles=null;
+  G.atkTiles = canAtk? visibleTargets(u) : null;
+  if(!canAtk) u.acted=true;
+  if(!G.atkTiles || !G.atkTiles.length){ u.acted=true; clearSel(); }
+  else { renderUnitCard(u); renderActions(); }
+  autoCapturePrompt(u);
+}
+function autoCapturePrompt(u){
+  const city=cityAt(u.x,u.y);
+  if(city && city.owner!==u.owner){ /* capture available via action button */ renderActions(); }
+}
+
+// Polytopia combat model
+function combat(att,def,ranged){
+  const aDef=UNITS[att.type], dDef=UNITS[def.type];
+  const dTile=tileAt(def.x,def.y);
+  let defBonus=TERRAIN[dTile.t].defBonus;
+  const dCity=cityAt(def.x,def.y);
+  if(dCity && dCity.owner===def.owner){ defBonus=dCity.wall?WALL_DEF_BONUS:CITY_DEF_BONUS; }
+  const aForce=aDef.atk*(att.hp/att.maxhp);
+  const dForce=dDef.def*(def.hp/def.maxhp)*defBonus;
+  const total=aForce+dForce || 1;
+  const atkDmg=Math.round((aForce/total)*aDef.atk*4.5);
+  const defDmg=Math.round((dForce/total)*dDef.def*4.5);
+  return {atkDmg,defDmg};
+}
+function doAttack(att,def){
+  const aDef=UNITS[att.type];
+  const ranged = cheb(att.x,att.y,def.x,def.y)>1;
+  const {atkDmg,defDmg}=combat(att,def,ranged);
+  def.hp-=atkDmg;
+  let killed=false, msg=`${UNITS[att.type].name} hits ${UNITS[def.type].name} −${atkDmg}`;
+  if(def.hp<=0){
+    removeUnit(def); killed=true; msg=`${UNITS[att.type].name} destroys ${UNITS[def.type].name}!`;
+    att.vet=att.vet; // (veteran system light)
+    // melee kill: attacker may advance into tile (Polytopia-style)
+    if(!ranged){ /* stay put; keep it simple & safe */ }
+  } else if(!ranged){
+    // retaliation for surviving melee defender
+    att.hp-=defDmg; if(att.hp<=0){ removeUnit(att); }
+  }
+  toast(msg);
+  att.attacked=true; att.movesLeft=0;
+  if(G.units.includes(att)) { att.acted=true; }
+  recomputeVision(att.owner);
+  checkElimination();
+  clearSel();
+}
+function removeUnit(u){ const i=G.units.indexOf(u); if(i>=0)G.units.splice(i,1); if(G.sel===u)clearSel(); }
+
+function canCapture(u){ const c=cityAt(u.x,u.y); return c && c.owner!==u.owner; }
+function doCapture(u){
+  const c=cityAt(u.x,u.y); if(!c||c.owner===u.owner) return;
+  const wasCapital=c.capital, prev=c.owner;
+  c.owner=u.owner;
+  if(c.owner>=0 && c.level===0) c.level=1;
+  c.capital = c.capital && false;           // captured capitals stop being *their* capital seat
+  if(wasCapital){ c.capital=true; /* becomes a normal high-value city of new owner */ }
+  computeTerritory(c);
+  toast(`Captured ${wasCapital?"a capital":"a "+(prev<0?"village":"city")}!`);
+  u.acted=true; u.movesLeft=0;
+  recomputeIncome(); recomputeVision(u.owner);
+  checkElimination();
+  clearSel();
+}
+
+function canHarvest(px,py,owner){
+  const t=tileAt(px,py); if(t.res===R.NONE) return false;
+  const rd=RESOURCE[t.res];
+  if(!G.players[owner].techs.has(rd.tech)) return false;
+  // must be within one of owner's city territories
+  return G.cities.some(c=>c.owner===owner && c.territory.some(([a,b])=>a===px&&b===py));
+}
+function doHarvest(px,py,owner){
+  const t=tileAt(px,py); const rd=RESOURCE[t.res];
+  const city=G.cities.find(c=>c.owner===owner && c.territory.some(([a,b])=>a===px&&b===py));
+  if(!city) return;
+  addPop(city, rd.pop);
+  t.res=R.NONE;
+  toast(`Harvested ${rd.name} +${rd.pop} pop`);
+  ctxcard.style.display="none";
+  recomputeIncome();
+}
+
+/* ------------------------------ CITY / POP -------------------------------- */
+function addPop(city,n){
+  city.pop+=n;
+  while(city.pop >= city.level+1){
+    city.pop-=(city.level+1);
+    city.level++;
+    if(city.owner===0) offerLevelReward(city);
+    else aiLevelReward(city);
+  }
+}
+function recomputeIncome(){
+  for(const p of G.players){
+    let inc=0;
+    for(const c of G.cities) if(c.owner===p.id){
+      inc += c.level;                       // each city yields stars = its level
+      if(c.workshop) inc+=1;
+      if(p.techs.has("farming")) inc+=1;
+    }
+    p.income=inc;
+  }
+}
+
+/* --------------------------------- TECH ---------------------------------- */
+function techCost(pid,id){
+  const tier=TECHS[id].tier;
+  const cities=G.cities.filter(c=>c.owner===pid).length || 1;
+  return tier*cities + 4;
+}
+function canResearch(pid,id){
+  const p=G.players[pid];
+  if(p.techs.has(id)) return false;
+  const req=TECHS[id].req;
+  if(req && !p.techs.has(req)) return false;
+  return true;
+}
+function research(pid,id){
+  const p=G.players[pid], cost=techCost(pid,id);
+  if(!canResearch(pid,id) || p.stars<cost) return false;
+  p.stars-=cost; p.techs.add(id);
+  if(pid===0){ toast(`Researched ${TECHS[id].name}`); renderHUD(); recomputeIncome(); buildTechModal(); }
+  return true;
+}
+
+/* ---------------------------------- AI ----------------------------------- */
+function aiTurn(pid){
+  const p=G.players[pid];
+  // 1) research: buy cheapest affordable unlockable tech, prefer combat/economy
+  const wish=["archery","riding","organization","hunting","mining","smithery","farming","chivalry","climbing","shields","forestry","mathematics","fishing"];
+  for(const id of wish){
+    if(canResearch(pid,id) && p.stars>=techCost(pid,id)+2){ research(pid,id); break; }
+  }
+  // 2) train units at owned cities if affordable
+  for(const c of G.cities.filter(c=>c.owner===pid)){
+    if(unitAt(c.x,c.y)) continue;
+    const options=affordableUnits(pid,p.stars);
+    if(options.length){
+      const type=options[options.length-1];       // best affordable
+      p.stars-=UNITS[type].cost; spawnUnit(type,c.x,c.y,pid);
+    }
+  }
+  // 3) move & fight each unit
+  for(const u of G.units.filter(u=>u.owner===pid)){
+    aiMoveUnit(u);
+  }
+  recomputeVision(pid); recomputeIncome();
+}
+function affordableUnits(pid,stars){
+  const p=G.players[pid];
+  return Object.keys(UNITS).filter(k=>{
+    const d=UNITS[k]; if(k==="giant")return false;
+    if(d.tech && !p.techs.has(d.tech)) return false;
+    return d.cost<=stars;
+  }).sort((a,b)=>UNITS[a].cost-UNITS[b].cost);
+}
+function aiMoveUnit(u){
+  // attack if a target is in range now
+  let tgts=targetsFor(u).sort((a,b)=>a.hp-b.hp);
+  if(tgts.length && !u.attacked){ aiSimAttack(u,tgts[0]); if(!G.units.includes(u))return; }
+  // capture if standing on a capturable city
+  if(canCapture(u)){ silentCapture(u); return; }
+  // move toward nearest enemy city / village / unit
+  const goal=aiGoal(u);
+  if(goal && u.movesLeft>0 && !u.acted){
+    const opts=reachable(u);
+    if(opts.length){
+      opts.sort((A,B)=> cheb(A[0],A[1],goal.x,goal.y)-cheb(B[0],B[1],goal.x,goal.y));
+      const [nx,ny]=opts[0];
+      if(cheb(nx,ny,u.x,u.y)>0){ u.x=nx; u.y=ny; u.movesLeft=0; }
+    }
+    // after moving, try capture / attack again (dash-ish for all in AI for simplicity)
+    if(canCapture(u)){ silentCapture(u); return; }
+    tgts=targetsFor(u);
+    if(tgts.length && !u.attacked){ aiSimAttack(u,tgts.sort((a,b)=>a.hp-b.hp)[0]); }
+  }
+  u.acted=true; u.movesLeft=0;
+}
+function aiGoal(u){
+  const enemies=G.cities.filter(c=>c.owner!==u.owner);
+  let best=null,bd=1e9;
+  for(const c of enemies){ const d=cheb(u.x,u.y,c.x,c.y); if(d<bd){bd=d;best=c;} }
+  for(const e of G.units.filter(e=>e.owner!==u.owner)){ const d=cheb(u.x,u.y,e.x,e.y); if(d<bd){bd=d;best=e;} }
+  return best;
+}
+function aiSimAttack(att,def){
+  const ranged=cheb(att.x,att.y,def.x,def.y)>1;
+  const {atkDmg,defDmg}=combat(att,def,ranged);
+  def.hp-=atkDmg;
+  if(def.hp<=0){ removeUnit(def); }
+  else if(!ranged){ att.hp-=defDmg; if(att.hp<=0) removeUnit(att); }
+  att.attacked=true; att.movesLeft=0;
+  checkElimination();
+}
+function silentCapture(u){
+  const c=cityAt(u.x,u.y); if(!c||c.owner===u.owner)return;
+  c.owner=u.owner; if(c.level===0)c.level=1; computeTerritory(c);
+  u.acted=true; u.movesLeft=0; recomputeIncome(); checkElimination();
+}
+function aiLevelReward(city){
+  // simple: alternate workshop / wall / border, sometimes giant
+  const r=ri(4);
+  if(r===0) city.workshop=true;
+  else if(r===1) city.wall=true;
+  else if(r===2){ city.borderGrown=true; computeTerritory(city); }
+  else if(city.level>=4 && !unitAt(city.x,city.y)) spawnUnit("giant",city.x,city.y,city.owner);
+  else city.workshop=true;
+}
+
+/* -------------------------------- TURN ----------------------------------- */
+function endTurn(){
+  if(G.over) return;
+  clearSel();
+  advancePlayer();
+}
+function advancePlayer(){
+  // find next alive player
+  let next=G.current;
+  do{ next=(next+1)%G.players.length; } while(!G.players[next].alive && next!==G.current);
+  if(next<=G.current){ // wrapped -> new round
+    G.turn++;
+  }
+  G.current=next;
+  startPlayerTurn(next);
+}
+function startPlayerTurn(pid){
+  const p=G.players[pid];
+  // income + city population growth
+  recomputeIncome();
+  p.stars+=p.income;
+  for(const c of G.cities) if(c.owner===pid) addPop(c,1); // natural +1 pop/turn per city
+  // reset units
+  for(const u of G.units) if(u.owner===pid){ u.movesLeft=UNITS[u.type].move; u.acted=false; u.attacked=false; }
+  recomputeVision(pid);
+
+  // score-mode end check
+  if(G.mode==="score" && G.turn>20 && pid===0){ endByScore(); return; }
+
+  renderHUD();
+  if(p.human){
+    renderActions(); save();
+    // auto-focus a city if you have no units
+  } else {
+    // run AI then advance automatically
+    setTimeout(()=>{ aiTurn(pid); if(!G.over) advancePlayer(); }, 220);
+  }
+}
+
+function checkElimination(){
+  for(const p of G.players){
+    if(!p.alive) continue;
+    const hasCity=G.cities.some(c=>c.owner===p.id);
+    const hasUnit=G.units.some(u=>u.owner===p.id);
+    if(!hasCity && !hasUnit){ p.alive=false; if(p.id!==0) toast(`${p.name} eliminated`); }
+  }
+  // domination victory
+  if(G.mode==="dom"){
+    const alive=G.players.filter(p=>p.alive);
+    const humanAlive=G.players[0].alive;
+    if(!humanAlive){ gameOver(false); return; }
+    if(alive.length===1 && alive[0].id===0){ gameOver(true); return; }
+  } else {
+    if(!G.players[0].alive){ gameOver(false); }
+  }
+}
+function computeScore(p){
+  let s=0;
+  for(const c of G.cities) if(c.owner===p.id) s+=c.level*100 + c.pop*5 + (c.wall?50:0);
+  s += p.techs.size*80;
+  s += G.units.filter(u=>u.owner===p.id).length*20;
+  return s;
+}
+function endByScore(){
+  for(const p of G.players) p.score=computeScore(p);
+  const win=G.players.slice().filter(p=>p.alive).sort((a,b)=>b.score-a.score)[0];
+  gameOver(win.id===0, true);
+}
+function gameOver(won,byScore){
+  G.over=true; G.winner=won?0:null;
+  clearSave();
+  showEndScreen(won,byScore);
+}
+
+/* --------------------------------- SAVE ---------------------------------- */
+const SAVE_KEY="tinytopia_save_v1";
+function save(){
+  try{
+    const data={
+      N:G.N,mode:G.mode,turn:G.turn,current:G.current,nextUid:G.nextUid,
+      tiles:G.tiles.map(t=>[t.t,t.res]),
+      units:G.units,
+      cities:G.cities,
+      players:G.players.map(p=>({...p,techs:[...p.techs],revealed:[...p.revealed],visible:[...p.visible]})),
+      cam:G.cam
+    };
+    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+  }catch(e){}
+}
+function hasSave(){ try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; } }
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+function loadSave(){
+  try{
+    const d=JSON.parse(localStorage.getItem(SAVE_KEY)); if(!d) return false;
+    const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1]}));
+    G={ N:d.N,mode:d.mode,turn:d.turn,current:d.current,over:false,winner:null,
+        tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,
+        players:d.players.map(p=>({...p,techs:new Set(p.techs),revealed:new Set(p.revealed),visible:new Set(p.visible)})),
+        sel:null,moveTiles:null,atkTiles:null, cam:d.cam, mode2:d.mode };
+    G.mode=d.mode;
+    recomputeIncome();
+    startScreen.classList.remove("on");
+    renderHUD(); renderActions();
+    return true;
+  }catch(e){ return false; }
+}
+
+/* ---------------------------------- UI ----------------------------------- */
+const el=(id)=>document.getElementById(id);
+const ctxcard=el("ctxcard"), toastWrap=el("toast");
+function toast(msg){
+  const d=document.createElement("div"); d.className="toast"; d.textContent=msg;
+  toastWrap.appendChild(d);
+  setTimeout(()=>{ d.style.transition="opacity .4s"; d.style.opacity="0"; setTimeout(()=>d.remove(),400); }, 1600);
+  while(toastWrap.children.length>4) toastWrap.firstChild.remove();
+}
+function renderHUD(){
+  el("hudTurn").textContent=G.turn;
+  el("hudStars").textContent=G.players[0].stars;
+  el("hudInc").textContent="+"+G.players[0].income+"/t";
+}
+function renderActions(){
+  const bar=el("actions");
+  bar.innerHTML="";
+  const u=G.sel;
+  if(isHumanTurn() && u){
+    if(canCapture(u) && !u.acted){ bar.appendChild(mkBtn("🚩 Capture","primary",()=>doCapture(u))); }
+    bar.appendChild(mkBtn("Deselect","",()=>clearSel()));
+  }
+  // end turn always
+  const eb=mkBtn(G.current===0?"End Turn ▶":"…AI thinking","primary",()=>{ if(isHumanTurn())endTurn(); });
+  eb.id="btnEnd"; if(!isHumanTurn()) eb.disabled=true;
+  bar.appendChild(eb);
+  renderHUD();
+}
+function mkBtn(label,cls,fn){ const b=document.createElement("button"); b.className="btn "+(cls||""); b.textContent=label; b.onclick=fn; return b; }
+
+function renderUnitCard(u){
+  const d=UNITS[u.type];
+  ctxcard.style.display="block";
+  ctxcard.innerHTML=`
+    <h3>${d.icon} ${d.name} ${u.vet?'<span class="pill">veteran</span>':''}</h3>
+    <div class="row"><span>Owner</span><b style="color:${G.players[u.owner].color}">${G.players[u.owner].name}</b></div>
+    <div class="row"><span>Attack / Defense</span><b>${d.atk} / ${d.def}</b></div>
+    <div class="row"><span>Move / Range</span><b>${d.move} / ${d.range}</b></div>
+    <div class="row"><span>Status</span><b>${u.acted?'done':(u.movesLeft>0?'ready':'moved')}</b></div>
+    <div class="hpbar"><i style="width:${Math.max(0,100*u.hp/u.maxhp)}%;background:${u.hp/u.maxhp>.5?'#57d38c':(u.hp/u.maxhp>.25?'#ffd75e':'#ff6b6b')}"></i></div>`;
+}
+function showTileCard(x,y){
+  const t=tileAt(x,y), ter=TERRAIN[t.t];
+  ctxcard.style.display="block";
+  let html=`<h3>${ter.name}</h3>`;
+  if(t.res!==R.NONE){
+    const rd=RESOURCE[t.res];
+    html+=`<div class="row"><span>Resource</span><b>${rd.icon} ${rd.name}</b></div>`;
+    if(canHarvest(x,y,0)){
+      html+=`<button class="btn primary" style="width:100%;margin-top:8px" id="hv">Harvest +${rd.pop} pop</button>`;
+    } else if(!G.players[0].techs.has(rd.tech)){
+      html+=`<div class="row"><span>Needs tech</span><b>${TECHS[rd.tech].name}</b></div>`;
+    } else {
+      html+=`<div class="row" style="color:#8ea0b5">Not in your territory</div>`;
+    }
+  } else {
+    html+=`<div class="row"><span>Defense bonus</span><b>×${ter.defBonus}</b></div>`;
+  }
+  ctxcard.innerHTML=html;
+  const hv=el("hv"); if(hv) hv.onclick=()=>doHarvest(x,y,0);
+}
+
+/* --- generic modal --- */
+function openModal(title,sub,bodyHTML){
+  el("mTitle").textContent=title; el("mSub").textContent=sub||"";
+  el("mBody").innerHTML=bodyHTML; el("scrim").classList.add("on");
+}
+el("mClose").onclick=()=>el("scrim").classList.remove("on");
+el("scrim").addEventListener("click",e=>{ if(e.target===el("scrim")) el("scrim").classList.remove("on"); });
+
+/* --- tech modal --- */
+el("btnTech").onclick=buildTechModal;
+function buildTechModal(){
+  const p=G.players[0];
+  const tiers={1:[],2:[],3:[]};
+  for(const id in TECHS) tiers[TECHS[id].tier].push(id);
+  let html="";
+  for(const tier of [1,2,3]){
+    html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:10px 0 6px">TIER ${tier}</div><div class="grid">`;
+    for(const id of tiers[tier]){
+      const owned=p.techs.has(id), avail=canResearch(0,id), cost=techCost(0,id);
+      const cls= owned?"owned":(avail? (p.stars>=cost?"":"locked") :"locked");
+      html+=`<div class="card ${cls}" data-tech="${id}">
+        <div class="t"><span>${TECHS[id].name}</span>${owned?'<span class="pill" style="color:#57d38c">✓</span>':`<span class="cost">★${cost}</span>`}</div>
+        <div class="d">${TECHS[id].blurb}${TECHS[id].req&&!owned?`<br><span style="color:#8ea0b5">needs ${TECHS[TECHS[id].req].name}</span>`:''}</div>
+      </div>`;
+    }
+    html+="</div>";
+  }
+  openModal("Research",`★ ${p.stars} available · +${p.income}/turn`,html);
+  el("mBody").querySelectorAll(".card").forEach(card=>{
+    card.onclick=()=>{ const id=card.dataset.tech; if(canResearch(0,id) && p.stars>=techCost(0,id)){ research(0,id); } };
+  });
+}
+
+/* --- city modal (train units) --- */
+function openCity(city){
+  const p=G.players[0];
+  const occupied=unitAt(city.x,city.y);
+  let html=`<div class="row" style="display:flex;gap:14px;color:#8ea0b5;font-size:12px;margin-bottom:8px">
+     <span>Level <b style="color:#eef2f7">${city.level}</b></span>
+     <span>Pop <b style="color:#eef2f7">${city.pop}/${city.level+1}</b></span>
+     <span>Income <b style="color:#ffd75e">★${city.level+(city.workshop?1:0)+(p.techs.has("farming")?1:0)}</b></span>
+     ${city.wall?'<span style="color:#ffd75e">Walled</span>':''}${city.capital?'<span style="color:#ffd75e">★Capital</span>':''}
+   </div>`;
+  if(occupied){
+    html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">Tile occupied — move the unit off before training a new one.</div>`;
+  }
+  html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:6px 0">TRAIN</div><div class="grid">`;
+  for(const key of Object.keys(UNITS)){
+    const d=UNITS[key]; if(key==="giant") continue;
+    const locked = d.tech && !p.techs.has(d.tech);
+    const afford = p.stars>=d.cost && !occupied;
+    const cls = locked?"locked":(afford?"":"locked");
+    html+=`<div class="card ${cls}" data-u="${key}">
+      <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">★${d.cost}</span></div>
+      <div class="d">ATK ${d.atk} · DEF ${d.def} · MOV ${d.move} · RNG ${d.range}${locked?`<br><span style="color:#8ea0b5">needs ${TECHS[d.tech].name}</span>`:''}</div>
+    </div>`;
+  }
+  html+="</div>";
+  openModal((city.capital?"★ ":"")+"City", "", html);
+  el("mBody").querySelectorAll(".card").forEach(card=>{
+    card.onclick=()=>{
+      const key=card.dataset.u, d=UNITS[key];
+      if(d.tech && !p.techs.has(d.tech)) return;
+      if(unitAt(city.x,city.y)) return;
+      if(p.stars<d.cost) return;
+      p.stars-=d.cost; spawnUnit(key,city.x,city.y,0);
+      recomputeVision(0); renderHUD(); el("scrim").classList.remove("on");
+      toast(`Trained ${d.name}`);
+    };
+  });
+}
+
+/* --- level-up reward chooser --- */
+function offerLevelReward(city){
+  const lvl=city.level;
+  let opts;
+  if(lvl===2) opts=[["Workshop","+1 star / turn from this city","workshop"],["Explorer","Reveal a wide area around the city","explorer"]];
+  else if(lvl===3) opts=[["City Wall","Strong defense bonus (×4) for defenders here","wall"],["Resources","+5 stars right now","stars"]];
+  else if(lvl===4) opts=[["Pop Growth","+3 population immediately","pop"],["Border Growth","Expand this city's territory","border"]];
+  else opts=[["Park","+250 score (Perfection value)","park"],["Giant","Spawn a mighty Giant unit","giant"]];
+  const html=`<div class="grid">${opts.map(o=>`<div class="card" data-r="${o[2]}"><div class="t">${o[0]}</div><div class="d">${o[1]}</div></div>`).join("")}</div>`;
+  openModal(`City reached level ${lvl}!`,"Choose a reward",html);
+  el("mBody").querySelectorAll(".card").forEach(card=>{
+    card.onclick=()=>{ applyReward(city,card.dataset.r); el("scrim").classList.remove("on"); };
+  });
+}
+function applyReward(city,r){
+  const p=G.players[city.owner];
+  if(r==="workshop"){ city.workshop=true; }
+  else if(r==="explorer"){ city.explorer=true; }
+  else if(r==="wall"){ city.wall=true; }
+  else if(r==="stars"){ p.stars+=5; }
+  else if(r==="pop"){ addPop(city,3); }
+  else if(r==="border"){ city.borderGrown=true; computeTerritory(city); }
+  else if(r==="park"){ city.park=(city.park||0)+250; }
+  else if(r==="giant"){ if(!unitAt(city.x,city.y)) spawnUnit("giant",city.x,city.y,city.owner); else p.stars+=5; }
+  recomputeIncome(); recomputeVision(city.owner); renderHUD();
+}
+
+/* --- help --- */
+el("btnHelp").onclick=()=>openModal("How to play","Explore · Expand · Research · Conquer",`
+  <ul class="help">
+    <li><b>Tap a unit</b> to select it. Blue tiles = where it can move, red outline = who it can attack.</li>
+    <li><b>Tap a blue tile</b> to move; <b>tap a red enemy</b> to attack. Combat uses hp, attack/defense and terrain.</li>
+    <li><b>Move onto a village or enemy city</b>, then press <span class="kbd">🚩 Capture</span> to take it.</li>
+    <li><b>Tap your own city</b> to spend <span class="star">★ stars</span> training units. Each city also grows +1 pop/turn.</li>
+    <li><b>🔬 Tech</b> spends stars on research — new units, harvesting, mountain travel and more.</li>
+    <li><b>Tap a resource tile</b> (🍎🦌⛏🐟) inside your borders and, with the right tech, <b>Harvest</b> it for population. Cities level up and grant rewards.</li>
+    <li><b>Stars/turn</b> = sum of your cities' levels (+workshops/farming). Spend them each turn.</li>
+    <li><b>Win</b> by <b>Domination</b> (wipe out every rival) — or by top <b>score</b> at turn 20 in Perfection mode.</li>
+    <li>Drag to pan, scroll or <span class="kbd">+ / −</span> to zoom.</li>
+  </ul>`);
+
+el("btnMenu").onclick=()=>openModal("Menu","",`
+  <button class="btn" style="width:100%;margin-bottom:8px" id="mm_center">Center on capital</button>
+  <button class="btn" style="width:100%;margin-bottom:8px" id="mm_save">Save now</button>
+  <button class="btn" style="width:100%" id="mm_new">New game…</button>`) || setTimeout(()=>{
+    el("mm_center").onclick=()=>{ centerCameraOn(capitalOf(0)); el("scrim").classList.remove("on"); };
+    el("mm_save").onclick=()=>{ save(); toast("Saved"); };
+    el("mm_new").onclick=()=>{ el("scrim").classList.remove("on"); startScreen.classList.add("on"); };
+  },0);
+
+/* --- end screen --- */
+function showEndScreen(won,byScore){
+  const rows=G.players.map(p=>({name:p.name,color:p.color,score:computeScore(p),alive:p.alive}))
+    .sort((a,b)=>b.score-a.score);
+  const html=`
+    <div class="center">
+      <h1 style="font-size:30px">${won?"Victory!":"Defeat"}</h1>
+      <p class="sub">${won?(byScore?"You held the highest score.":"You dominated the map."):"Your tribe has fallen."}</p>
+      ${rows.map(r=>`<div class="field"><label style="color:${r.color}">${r.name}${r.alive?"":" ✝"}</label><b class="mono">${r.score}</b></div>`).join("")}
+      <button class="btn primary" style="width:100%;margin-top:12px" id="againBtn">New game ▶</button>
+    </div>`;
+  openModal("","",html);
+  el("mClose").style.display="none";
+  el("againBtn").onclick=()=>{ el("mClose").style.display=""; el("scrim").classList.remove("on"); startScreen.classList.add("on"); };
+}
+
+/* ------------------------------ START SCREEN ----------------------------- */
+const startScreen=el("startScreen");
+let sel={tribe:"imperius",size:12,ai:1,mode:"dom"};
+function buildTribeGrid(){
+  const g=el("tribeGrid"); g.innerHTML="";
+  TRIBES.forEach(t=>{
+    const d=document.createElement("div"); d.className="tribe"+(t.id===sel.tribe?" on":"");
+    d.innerHTML=`<div class="dot" style="background:${t.color}"></div><div class="n">${t.name}</div><div class="s">${TECHS[t.start].name}</div>`;
+    d.onclick=()=>{ sel.tribe=t.id; buildTribeGrid(); };
+    g.appendChild(d);
+  });
+}
+function wireSeg(id,key,cast){
+  el(id).querySelectorAll("button").forEach(b=>{
+    b.onclick=()=>{ el(id).querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
+      sel[key]=cast(b.dataset.v); };
+  });
+}
+buildTribeGrid();
+wireSeg("segSize","size",Number); wireSeg("segAI","ai",Number); wireSeg("segMode","mode",String);
+el("btnStart").onclick=()=>{
+  newGame({tribe:sel.tribe,size:sel.size,ai:sel.ai,mode:sel.mode});
+  startScreen.classList.remove("on"); el("mClose").style.display="";
+  renderHUD(); renderActions(); save();
+  toast("Your tribe is founded. Explore!");
+};
+el("btnContinue").onclick=()=>{ if(loadSave()){ el("mClose").style.display=""; } };
+if(hasSave()) el("btnContinue").style.display="block";
+
+// keyboard: Enter/Space = end turn, Esc = deselect
+addEventListener("keydown",e=>{
+  if(startScreen.classList.contains("on")||el("scrim").classList.contains("on")) return;
+  if(e.key===" "||e.key==="Enter"){ if(isHumanTurn())endTurn(); }
+  else if(e.key==="Escape") clearSel();
+});
+
+requestAnimationFrame(draw);
+</script>
+</body>
+</html>
