@@ -3,16 +3,86 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
-<title>TINYTOPIA — a Polytopia-style 4X</title>
+<title>TOLTALES — a folklore 4X</title>
+<!--
+TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-beep/Tinytopia @847e085)
+[1] Rename pass per spec §17.1: stars→Influence (📜), pop→Listeners, tribe→folklore in code + all
+    UI text; finished Storied (§8.4: kill → full heal, +5 max hp, ✦) incl. retaliation kills;
+    all cities reveal radius 2 (§5); save key bumped to toltales_save_v1.
+[1.5] Isometric diamond view (§3) + §15 palette ported from the Toltales.html draft: iso
+    transform/picking, diamond tiles w/ emoji terrain, coin-style cities/units, painter's-order
+    draw, midnight-blue/ember/gold UI skin, serif type, two-finger pinch zoom, per-frame
+    late-window resize guard. Engine rules untouched.
+[2] Lantern Court roster (§17.2): Wanderer 🚶 + Lantern Crone 🏮 replace the 8 Polytopia units;
+    Hearthbound (+0.5 def multiplier on ANY city tile), Farlight (vision 2), Crone storied range 3;
+    starting unit = Wanderer; folklores = Lantern Court + 3 clearly-marked CPU mirror rivals;
+    no free starting tech (§2); Giant and its reward paths removed (ladder rebuilt in step 7);
+    Crone unlock = 'archery' as a PLACEHOLDER until step 5's lantern_roads flame node; dormant
+    unit-techs relabeled; save key bumped to toltales_save_v2. Kindle (§11) deliberately not
+    built yet — it is absent from the §17 step list (flagged).
+[3] §9.2 retaliation (§17.3): full melee retaliation replaced by a single auto-counter at 25%
+    of the §9.1 defender damage, gated on defender survival + attacker within the defender's
+    range + the defending PLAYER's fog showing the attacker's tile (player-level fog gate, per
+    design ruling 2026-07-21). Applies to melee and ranged alike; no counter-to-the-counter.
+[4] §7.1 two-turn capture (§17.4): moving onto a foreign city starts "converting" (dashed ring
+    cue in besieger's colour); holds tick at the besieger's turn start; Take City unlocks after
+    1 hold (2 if walled) and freezes the unit; attacks never reset the siege, leaving/dying does;
+    AI holds sieges under the same clock. Applies to neutral villages too (uniform §7.1 reading —
+    flagged as a tuning knob since it slows early expansion vs. Polytopia's instant villages).
+[5] §10 forked lore tree (§17.5): 13 legacy techs → the 20-node hub-and-fans tree (4 branches ×
+    T1→Harvest/Mastery fork→T3) with Lantern Court flame nodes replacing Wayshrines→Lantern Roads
+    (unlocks the Crone; nearby-city +1 Listener uses cheb≤4, no roads in engine) and Festival→
+    Bonfire Moot (+250 score Monument that also heals 3/turn on own city tiles). SVG radial tree
+    UI per §10.3 (positions computed from constants; owned/available/locked/flame states; Unlock
+    bar). Effects live: Mountain/Forest Paths costs, Old Roads +1 move, Stonereading/Forest Paths
+    2.0 defense, Wildcalling stealth, Thornbind movement stop, Delving/harvest remaps, Deepharvest
+    coastal income, Shrine-stone +0.5, Forge −1 train, Watch-cairn +1 city vision, Lodge +1 income.
+    Buildings are tile-less per-city purchases at 📜5 (spec defines no build flow — interpretation
+    flagged). Raft effects (Raftcraft/Currents/Tidecall) researchable but dormant until step 6.
+    Mirrors share the LC tree. One-step move guarantee added so move-1 units can enter cost-2
+    terrain. Save key → toltales_save_v3.
+[6] §8.3 vessel rule (§17.6): Raftcraft embark (one move-ending step onto water, only from own
+    territory), raft stat override move 2/atk 0/def 1/range 1 via unitAtk/unitDef/unitMovePts/
+    unitRange (hp shared — sinking kills the rider), disembark restores true stats, 🛶 drawn under
+    the rider, Currents (+1 raft move) and Tidecall (rafts may attack, ATK 1) now live. Rafts
+    cannot attack pre-Tidecall; retaliation/fog rules apply to rafts unchanged.
+[7] §7.2 capacity + §7.3 ladder (§17.7): army cap = Σ(level+1) enforced for training (human+AI)
+    and the free-unit reward; legacy reward menu replaced by the spec ladder (L1 income/free
+    Wanderer/scout-path · L2 free frontier lore/Kindle charge/income · L3 Wellspring-or-+2-
+    Listeners/Shrine/CITY WALL [approved walls-source fix] · L4 border growth [other folklores'
+    tiles skipped]/income · L5+ +250 score/income, Legend slot deferred to slice 2); §6.1 +2/turn
+    baseline income added; Kindle (§11) shipped: 1 starting charge, +1 per Storied (§8.4), +1 via
+    L2 reward, button in action bar → tap reveals 7×7 permanently. CPU ignores Kindle (flagged).
+[8] §4 worlds (§17.8): WORLD recipes + start-screen picker — The Heartlands (55% land, no twist)
+    and The Booklands (75% land, twist: storytellers); Random draws from standard worlds only.
+    Terrain gen is now recipe-driven (landPct + weights + one smoothing pass), replacing the old
+    blob walker. §4.5 Abandoned Libraries on all worlds (rate/100 tiles; weighted 30/25/25/15/5:
+    +5📜 / free frontier lore / +1 Listener nearest city / reveal 5×5 / free Wanderer), consumed
+    on entry. §4.3 Storytellers SELL one discounted unit (half cost, rounded up — tuning) drawn
+    at map-gen from a random folklore's roster; vanish on purchase, stay if declined; unit spawns
+    on an adjacent free land tile; AI auto-buys when able. Save format + key → toltales_save_v4.
+[9] §12/§13 (§17.9): Endless mode added; Score mode limit → 30 turns (tuning const); difficulty
+    picker Easy/Medium/Hard/Crazy/Insane as flat CPU +Influence/turn (1/2/3/5/7; Insane also 1
+    free starting tech); §12 elimination rewritten — zero cities destroys a folklore regardless
+    of surviving army, its units vanish, full-screen "no longer told" beat (also the defeat
+    screen's line); +500 destruction bounty credited to the capturer and scored.
+[10] Local hot-seat (§17.10, local half only — Cloudflare deferred per negative scope): Humans
+    1–2 on the setup screen; §2 randomized turn order (any seat may open, incl. a CPU); the
+    screen renders the fog of G.viewer (last human whose turn started); every hardcoded
+    player-0 UI path now routes through viewIndex()/viewingPlayer(); opaque pass-the-device
+    curtain between human turns (same-paint switch, no fog leak; also shown on save resume);
+    HUD shows the active folklore; win/loss generalised (defeat only when ALL humans fall,
+    winner named on the end screen). Save blob carries viewer — netcode-ready per §14.
+-->
 <style>
   :root{
-    --bg:#12161c; --panel:#1b222c; --panel2:#232c39; --ink:#eef2f7; --muted:#8ea0b5;
-    --line:#2c3644; --accent:#ffb347; --accent2:#5ec2ff; --good:#57d38c; --bad:#ff6b6b;
+    --bg:#141b2e; --panel:#1c2542; --panel2:#2a3252; --ink:#e8dcc0; --muted:#9aa3b8;
+    --line:#3a4468; --accent:#ff9138; --accent2:#ffd984; --good:#57d38c; --bad:#ff6b6b;
     --gold:#ffd75e;
   }
   *{box-sizing:border-box; -webkit-tap-highlight-color:transparent}
   html,body{margin:0;height:100%;background:var(--bg);color:var(--ink);
-    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,sans-serif;overflow:hidden;
+    font-family:Georgia,'Times New Roman',serif;overflow:hidden;
     user-select:none;-webkit-user-select:none}
   canvas{display:block;position:absolute;inset:0;touch-action:none}
   .mono{font-family:"Space Mono",ui-monospace,SFMono-Regular,Menlo,monospace}
@@ -31,7 +101,7 @@
     box-shadow:0 2px 10px rgba(0,0,0,.35);transition:transform .05s ease,background .15s}
   .btn:hover{background:var(--panel2)}
   .btn:active{transform:translateY(1px)}
-  .btn.primary{background:linear-gradient(180deg,#ffc266,#ff9d33);color:#241500;border-color:#ffb347}
+  .btn.primary{background:linear-gradient(180deg,#ffb066,#ff8a2a);color:#241203;border-color:#ff9138}
   .btn.primary:hover{filter:brightness(1.05)}
   .btn[disabled]{opacity:.45;cursor:not-allowed}
   .grow{flex:1}
@@ -81,7 +151,7 @@
   /* start / end screens */
   .center{max-width:520px;text-align:center}
   .center h1{font-size:38px;margin:0 0 2px;letter-spacing:-1px;
-    background:linear-gradient(90deg,#ffd75e,#ff9d33,#5ec2ff);-webkit-background-clip:text;background-clip:text;color:transparent}
+    background:linear-gradient(90deg,#ffd75e,#ff9138,#ffd984);-webkit-background-clip:text;background-clip:text;color:transparent}
   .center .sub{color:var(--muted);margin:0 0 18px;font-size:14px}
   .field{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:10px 0;
     background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:10px 12px}
@@ -90,13 +160,17 @@
   .seg button{border:0;background:transparent;color:var(--muted);font-weight:800;font-size:13px;
     padding:6px 12px;border-radius:8px;cursor:pointer}
   .seg button.on{background:var(--accent);color:#241500}
-  .tribes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 14px}
-  .tribe{border:2px solid var(--line);border-radius:12px;padding:9px 6px;cursor:pointer;text-align:center}
-  .tribe.on{border-color:var(--accent)}
-  .tribe .dot{width:22px;height:22px;border-radius:6px;margin:0 auto 5px}
-  .tribe .n{font-weight:800;font-size:12px}
-  .tribe .s{font-size:10px;color:var(--muted)}
+  .folks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 14px}
+  .folk{border:2px solid var(--line);border-radius:12px;padding:9px 6px;cursor:pointer;text-align:center}
+  .folk.on{border-color:var(--accent)}
+  .folk .dot{width:22px;height:22px;border-radius:6px;margin:0 auto 5px}
+  .folk .n{font-weight:800;font-size:12px}
+  .folk .s{font-size:10px;color:var(--muted)}
 
+  /* hot-seat pass-the-device curtain — fully opaque so fog never leaks */
+  #curtain{position:fixed;inset:0;background:var(--bg);z-index:40;display:none;
+    align-items:center;justify-content:center;padding:20px}
+  #curtain.on{display:flex}
   #toast{position:absolute;top:56px;left:50%;transform:translateX(-50%);z-index:15;
     display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none}
   .toast{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--accent);
@@ -114,8 +188,9 @@
 <!-- top HUD -->
 <div id="hud">
   <div class="badge"><span>Turn</span><b id="hudTurn" class="mono">1</b></div>
-  <div class="badge"><span class="star">★</span><b id="hudStars" class="mono">0</b><small id="hudInc">+0/t</small></div>
-  <button class="btn" id="btnTech">🔬 Tech</button>
+  <div class="badge"><b id="hudFolkName">—</b></div>
+  <div class="badge"><span class="star">📜</span><b id="hudInfluence" class="mono">0</b><small id="hudInc">+0/t</small></div>
+  <button class="btn" id="btnTech">📖 Lore</button>
   <div class="grow"></div>
   <button class="btn" id="btnHelp">?</button>
   <button class="btn" id="btnMenu">☰</button>
@@ -137,6 +212,15 @@
 
 <div id="toast"></div>
 
+<!-- hot-seat curtain -->
+<div id="curtain">
+  <div class="modal"><div class="mbody center">
+    <p class="sub" style="margin-bottom:4px">Hand the device over. No peeking.</p>
+    <h1 style="font-size:26px" id="curtainName">—</h1>
+    <button class="btn primary" style="width:100%;margin-top:14px" id="curtainGo">Begin the telling ▶</button>
+  </div></div>
+</div>
+
 <!-- generic modal -->
 <div class="scrim" id="scrim">
   <div class="modal">
@@ -149,22 +233,34 @@
 <div class="scrim on" id="startScreen">
   <div class="modal">
     <div class="mbody center">
-      <h1>TINYTOPIA</h1>
-      <p class="sub">A pocket-sized, Polytopia-style turn-based 4X. Explore, expand, research, conquer.</p>
-      <div class="tribes" id="tribeGrid"></div>
+      <h1>TOLTALES</h1>
+      <p class="sub">A pocket-sized, turn-based 4X of rival folklores. Explore, expand, research, conquer.</p>
+      <div class="folks" id="folkGrid"></div>
+      <div class="field"><label>World</label>
+        <div class="seg" id="segWorld">
+          <button data-v="heartlands" class="on">Heartlands</button><button data-v="booklands">Booklands</button><button data-v="random">Random</button>
+        </div></div>
       <div class="field"><label>Map size</label>
         <div class="seg" id="segSize">
           <button data-v="9">Tiny</button><button data-v="12" class="on">Small</button><button data-v="16">Large</button>
         </div></div>
-      <div class="field"><label>Opponents</label>
+      <div class="field"><label>Humans (hot-seat)</label>
+        <div class="seg" id="segHumans">
+          <button data-v="1" class="on">1</button><button data-v="2">2</button>
+        </div></div>
+      <div class="field"><label>CPU rivals</label>
         <div class="seg" id="segAI">
           <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button>
         </div></div>
       <div class="field"><label>Mode</label>
         <div class="seg" id="segMode">
-          <button data-v="dom" class="on">Domination</button><button data-v="score">Perfection (20t)</button>
+          <button data-v="dom" class="on">Domination</button><button data-v="score">Score (30t)</button><button data-v="endless">Endless</button>
         </div></div>
-      <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:6px">Found your tribe ▶</button>
+      <div class="field"><label>Difficulty</label>
+        <div class="seg" id="segDiff" style="flex-wrap:wrap">
+          <button data-v="easy">Easy</button><button data-v="medium" class="on">Medium</button><button data-v="hard">Hard</button><button data-v="crazy">Crazy</button><button data-v="insane">Insane</button>
+        </div></div>
+      <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:6px">Found your folklore ▶</button>
       <button class="btn" id="btnContinue" style="width:100%;margin-top:8px;display:none">Continue saved game</button>
     </div>
   </div>
@@ -173,7 +269,7 @@
 <script>
 "use strict";
 /* ============================================================================
-   TINYTOPIA — a single-file, Polytopia-style 4X on <canvas>. Vanilla JS.
+   TOLTALES — a single-file, turn-based 4X of rival folklores on <canvas>. Vanilla JS.
    Sections:  DATA · RNG · MAPGEN · STATE · GEOMETRY · FOG · RENDER
               INPUT · RULES(move/combat/capture/harvest) · TECH · CITY · AI
               TURN · SAVE · UI
@@ -184,58 +280,97 @@ const T = { FIELD:0, FOREST:1, MOUNTAIN:2, WATER:3 };
 const R = { NONE:0, FRUIT:1, GAME:2, METAL:3, FISH:4 };
 
 const TERRAIN = {
-  [T.FIELD]:    {name:"Field",    move:1,  defBonus:1.0, top:"#5a8f3d", bot:"#3f6d2b"},
-  [T.FOREST]:   {name:"Forest",   move:1,  defBonus:1.5, top:"#2f6b34", bot:"#1e4a24"},
-  [T.MOUNTAIN]: {name:"Mountain", move:2,  defBonus:1.5, top:"#8a8f9a", bot:"#5b606b"},
-  [T.WATER]:    {name:"Water",    move:Infinity, defBonus:1.0, top:"#2f7fc4", bot:"#1f5c95"},
+  [T.FIELD]:    {name:"Field",    move:1,  defBonus:1.0, top:"#5c7f43", bot:"#3f6d2b"},
+  [T.FOREST]:   {name:"Forest",   move:2,  defBonus:1.5, top:"#3e6136", bot:"#1e4a24"},   // cost 1 with Forest Paths (§10.1)
+  [T.MOUNTAIN]: {name:"Mountain", move:2,  defBonus:1.5, top:"#767d89", bot:"#5b606b"},
+  [T.WATER]:    {name:"Water",    move:Infinity, defBonus:1.0, top:"#2b4a73", bot:"#1f5c95"},
 };
 
 const RESOURCE = {
-  [R.FRUIT]: {name:"Fruit",  icon:"🍎", tech:"organization", pop:1, on:T.FIELD},
-  [R.GAME]:  {name:"Game",   icon:"🦌", tech:"hunting",      pop:1, on:T.FOREST},
-  [R.METAL]: {name:"Metal",  icon:"⛏",  tech:"mining",       pop:2, on:T.MOUNTAIN},
-  [R.FISH]:  {name:"Fish",   icon:"🐟", tech:"fishing",      pop:1, on:T.WATER},
+  [R.FRUIT]: {name:"Fruit", icon:"🍎", tech:"harvesting", listeners:1, on:T.FIELD},
+  [R.GAME]:  {name:"Game",  icon:"🦌", tech:"hunting",    listeners:1, on:T.FOREST},
+  [R.METAL]: {name:"Ore",   icon:"⛏",  tech:"delving",    listeners:2, on:T.MOUNTAIN},
+  [R.FISH]:  {name:"Fish",  icon:"🐟", tech:"fishing",    listeners:1, on:T.WATER},
 };
 
-// Unit archetypes. atk/def are Polytopia-style force values; hp in tenths-of-heart *10.
+// Toltales roster — The Lantern Court (§8.2). CPU rivals mirror this roster until
+// folklores #2–4 ship (slice 2+). sig extras are data flags read by the rules code:
+//   cityDefSig  — Hearthbound: added to the defense multiplier on any city tile
+//   vision      — Farlight: base vision radius (default 1)
+//   storiedRange— range override once the unit is Storied
 const UNITS = {
-  warrior:  {name:"Warrior",  icon:"⚔", cost:2,  hp:10, atk:2,   def:2, move:1, range:1, tech:null,          dash:false},
-  archer:   {name:"Archer",   icon:"🏹", cost:3,  hp:10, atk:2,   def:1, move:1, range:2, tech:"archery",     dash:false},
-  rider:    {name:"Rider",    icon:"🐎", cost:3,  hp:10, atk:2,   def:1, move:2, range:1, tech:"riding",      dash:true},
-  defender: {name:"Defender", icon:"🛡", cost:3,  hp:15, atk:1,   def:3, move:1, range:1, tech:"shields",     dash:false},
-  swordsman:{name:"Swordsman",icon:"🗡", cost:5,  hp:15, atk:3,   def:3, move:1, range:1, tech:"smithery",    dash:false},
-  catapult: {name:"Catapult", icon:"💥", cost:8,  hp:10, atk:4,   def:0, move:1, range:3, tech:"mathematics", dash:false},
-  knight:   {name:"Knight",   icon:"♞", cost:8,  hp:10, atk:3.5, def:1, move:3, range:1, tech:"chivalry",    dash:true},
-  giant:    {name:"Giant",    icon:"👹", cost:99, hp:40, atk:5,   def:4, move:1, range:1, tech:null,          dash:false},
+  wanderer: {name:"Wanderer",      icon:"🚶", cost:2, hp:10, atk:2, def:2, move:1, range:1, tech:null, dash:false,
+             tagline:"Every road remembers him.",
+             sig:"Hearthbound — steadier on any city tile (+0.5 defense multiplier)", cityDefSig:0.5},
+  crone:    {name:"Lantern Crone", icon:"🏮", cost:4, hp:8,  atk:2, def:1, move:1, range:2, tech:"lantern_roads", dash:false,
+             tagline:"She sees you before you see her.",
+             sig:"Farlight — sees 2 tiles into the dark", vision:2, storiedRange:3},
 };
 
-// Tech tree. tier drives cost; unlocks are informational + gate units/harvest/actions.
+// §10 lore tree: Ancestral Lore hub + four branches, each T1 → fork (Harvest side / Mastery
+// side) → one T3 per T2. 20 shared slots; the Lantern Court replaces Wayshrines→Lantern Roads
+// and Festival→Bonfire Moot in place (§10.2, flame:true). Mirrors share this tree. Node order
+// inside each branch matters: the tier-2 defined first takes the Harvest fan position.
 const TECHS = {
-  climbing:    {name:"Climbing",    tier:1, req:null,          blurb:"Cross mountains; +sight from peaks."},
-  hunting:     {name:"Hunting",     tier:1, req:null,          blurb:"Harvest Game from forests (+pop)."},
-  fishing:     {name:"Fishing",     tier:1, req:null,          blurb:"Harvest Fish from water (+pop)."},
-  organization:{name:"Organization",tier:1, req:null,          blurb:"Harvest Fruit from fields (+pop)."},
-  riding:      {name:"Riding",      tier:1, req:null,          blurb:"Train Riders — fast, can dash & retreat."},
-  mining:      {name:"Mining",      tier:2, req:"climbing",    blurb:"Mine Metal from mountains (+2 pop)."},
-  archery:     {name:"Archery",     tier:2, req:"hunting",     blurb:"Train Archers — range 2."},
-  forestry:    {name:"Forestry",    tier:2, req:"hunting",     blurb:"Unlocks Mathematics."},
-  farming:     {name:"Farming",     tier:2, req:"organization",blurb:"+1 income at every city."},
-  shields:     {name:"Shields",     tier:2, req:"riding",      blurb:"Train Defenders — 3 defense."},
-  smithery:    {name:"Smithery",    tier:3, req:"mining",      blurb:"Train Swordsmen — 3 atk / 3 def."},
-  mathematics: {name:"Mathematics", tier:3, req:"forestry",    blurb:"Train Catapults — range 3 siege."},
-  chivalry:    {name:"Chivalry",    tier:3, req:"shields",     blurb:"Train Knights — move 3, chain kills."},
+  /* STONELORE 🏔 */
+  mountain_paths:{name:"Mountain Paths",branch:"stonelore",tier:1,req:null,icon:"🏔",blurb:"Units may enter mountains (move cost 2; peaks grant +1 sight)."},
+  delving:       {name:"Delving",       branch:"stonelore",tier:2,req:"mountain_paths",icon:"⛏",blurb:"Harvest Ore from mountains (+2 Listeners)."},
+  forgecraft:    {name:"Forgecraft",    branch:"stonelore",tier:3,req:"delving",icon:"⚒",blurb:"Build a Forge in a city — it trains units at −1 Influence.",building:"forge"},
+  stonereading:  {name:"Stonereading",  branch:"stonelore",tier:2,req:"mountain_paths",icon:"🪨",blurb:"Your units' mountain defense bonus rises 1.5→2.0."},
+  peakward:      {name:"Peakward",      branch:"stonelore",tier:3,req:"stonereading",icon:"🗼",blurb:"Build a Watch-cairn — +1 vision radius for that city.",building:"watchcairn"},
+  /* DEEPLORE 🌊 */
+  raftcraft:     {name:"Raftcraft",     branch:"deeplore",tier:1,req:null,icon:"🛶",blurb:"Land units in your territory may step onto water as Rafts (move 2 · def 1 · no attack)."},
+  fishing:       {name:"Fishing",       branch:"deeplore",tier:2,req:"raftcraft",icon:"🐟",blurb:"Harvest Fish from water (+1 Listener)."},
+  deepharvest:   {name:"Deepharvest",   branch:"deeplore",tier:3,req:"fishing",icon:"🌊",blurb:"Coastal cities +1 Influence/turn. (Deep-water harvest awaits deeper seas — slice 2.)"},
+  currents:      {name:"Currents",      branch:"deeplore",tier:2,req:"raftcraft",icon:"💨",blurb:"Rafts move 3."},
+  tidecall:      {name:"Tidecall",      branch:"deeplore",tier:3,req:"currents",icon:"🌀",blurb:"Rafts may attack (ATK 1)."},
+  /* WOODLORE 🌲 */
+  forest_paths:  {name:"Forest Paths",  branch:"woodlore",tier:1,req:null,icon:"🌲",blurb:"Forest move cost 1; your forest defense bonus rises 1.5→2.0."},
+  hunting:       {name:"Hunting",       branch:"woodlore",tier:2,req:"forest_paths",icon:"🦌",blurb:"Harvest Game from forests (+1 Listener)."},
+  groveward:     {name:"Groveward",     branch:"woodlore",tier:3,req:"hunting",icon:"🏕",blurb:"Build a Lodge — +1 Influence/turn.",building:"lodge"},
+  wildcalling:   {name:"Wildcalling",   branch:"woodlore",tier:2,req:"forest_paths",icon:"🦉",blurb:"Your units in forest are hidden until an enemy stands adjacent."},
+  thornbind:     {name:"Thornbind",     branch:"woodlore",tier:3,req:"wildcalling",icon:"🌿",blurb:"Enemies entering forest you own lose their remaining movement. (Experimental — tuning.)"},
+  /* FIELDLORE 🌾 */
+  old_roads:     {name:"Old Roads",     branch:"fieldlore",tier:1,req:null,icon:"🌾",blurb:"+1 move when starting a turn on an owned field tile."},
+  harvesting:    {name:"Harvesting",    branch:"fieldlore",tier:2,req:"old_roads",icon:"🍎",blurb:"Harvest Fruit from fields (+1 Listener)."},
+  hearthward:    {name:"Hearthward",    branch:"fieldlore",tier:3,req:"harvesting",icon:"⛩",blurb:"Build a Shrine-stone — defenders on that city tile +0.5; +1 Influence/turn per level-3+ city.",building:"shrinestone"},
+  lantern_roads: {name:"Lantern Roads", branch:"fieldlore",tier:2,req:"old_roads",icon:"🏮",flame:true,blurb:"Unlocks the Lantern Crone. Owned cities within 4 tiles of another gain +1 Listener/turn."},
+  bonfire_moot:  {name:"Bonfire Moot",  branch:"fieldlore",tier:3,req:"lantern_roads",icon:"🔥",flame:true,blurb:"Build a Bonfire Moot — +250 score, and your units on your city tiles heal 3/turn.",building:"monument"},
 };
+const BRANCHES={ stonelore:{angle:-90}, deeplore:{angle:0}, fieldlore:{angle:90}, woodlore:{angle:180} };
+// §10.1 T3 buildings: tile-less, bought per city once researched. Cost is a tuning knob —
+// the spec defines no build flow, so this minimal purchase is the slice interpretation.
+const BUILDINGS={
+  forge:      {name:"Forge",       icon:"⚒", tech:"forgecraft",  desc:"Units train at −1 Influence here"},
+  watchcairn: {name:"Watch-cairn", icon:"🗼", tech:"peakward",    desc:"+1 vision radius for this city"},
+  lodge:      {name:"Lodge",       icon:"🏕", tech:"groveward",   desc:"+1 Influence/turn"},
+  shrinestone:{name:"Shrine-stone",icon:"⛩", tech:"hearthward",  desc:"Defenders on this city tile +0.5"},
+  monument:   {name:"Bonfire Moot",icon:"🔥", tech:"bonfire_moot",desc:"+250 score; your units on your city tiles heal 3/turn"},
+};
+const BUILD_COST=5;
 
-const TRIBES = [
-  {id:"imperius", name:"Imperius", color:"#4f8cff", start:"organization"},
-  {id:"bardur",   name:"Bardur",   color:"#e0533d", start:"hunting"},
-  {id:"xinxi",    name:"Xin-xi",   color:"#c04ecb", start:"climbing"},
-  {id:"oumaji",   name:"Oumaji",   color:"#e9c33a", start:"riding"},
-  {id:"kickoo",   name:"Kickoo",   color:"#2fbfa8", start:"fishing"},
-  {id:"hoodrick", name:"Hoodrick", color:"#a9793f", start:"archery"},
+// One real folklore (§11: The Lantern Court, ember-orange); the others are clearly-marked
+// placeholder rivals that mirror the same roster, for CPUs, until folklores #2–4 are designed.
+const FOLKLORES = [
+  {id:"lantern_court", name:"Lantern Court", color:"#ff9138", tagline:"the fireside telling"},
+  {id:"moss_choir",    name:"Moss Choir",    color:"#3fbf9f", tagline:"rival telling (mirror)"},
+  {id:"salt_chorus",   name:"Salt Chorus",   color:"#7fb2e5", tagline:"rival telling (mirror)"},
+  {id:"hollow_chant",  name:"Hollow Chant",  color:"#a06cd5", tagline:"rival telling (mirror)"},
 ];
 
 const CITY_DEF_BONUS = 1.5, WALL_DEF_BONUS = 4.0;
+// §13 difficulty = CPU economy cheat, not smarter code; §12 Score mode turn limit is tuning
+const DIFFICULTY={ easy:{bonus:1}, medium:{bonus:2}, hard:{bonus:3}, crazy:{bonus:5}, insane:{bonus:7, freeTech:1} };
+const SCORE_TURN_LIMIT=30;
+
+// §4 worlds: a recipe + at most one twist. Slice ships Heartlands (standard) + Booklands
+// (twist: storytellers); Warlands/Gloaming/Floodmarch are slice-2 scope. Weights are tuning.
+const WORLDS={
+  heartlands:{ id:"heartlands", name:"The Heartlands", tagline:"an even mix of all terrain",
+    landPct:55, terrainWeights:{field:.42,forest:.32,mountain:.26}, twist:null, librarySpawnRate:2 },
+  booklands:{ id:"booklands", name:"The Booklands", tagline:"libraries and storytellers",
+    landPct:75, terrainWeights:{field:.5,forest:.3,mountain:.2}, twist:"storytellers", librarySpawnRate:5 },
+};
 
 /* ------------------------------- RNG (seeded) ----------------------------- */
 let _seed = 1;
@@ -257,58 +392,108 @@ const tileAt = (x,y)=> G.tiles[idx(x,y)];
 
 function newGame(opts){
   srand((Date.now() ^ (Math.random()*1e9)) >>> 0);
+  let wid=opts.world;
+  if(!wid || wid==="random" || !WORLDS[wid]){
+    const std=Object.keys(WORLDS).filter(k=>!WORLDS[k].twist);   // §2: Random = standard worlds only
+    wid=std[ri(std.length)];
+  }
   const N = opts.size;
   const tiles = new Array(N*N);
   for(let y=0;y<N;y++)for(let x=0;x<N;x++){
-    tiles[y*N+x] = {x,y, t:T.FIELD, res:R.NONE};
+    tiles[y*N+x] = {x,y, t:T.FIELD, res:R.NONE, lib:false, story:null};
   }
   G = {
-    N, mode:opts.mode, turn:1, current:0, over:false, winner:null,
+    N, mode:opts.mode, world:wid, diff:opts.diff||"medium", turn:1, current:0, over:false, winner:null,
     tiles, units:[], cities:[], players:[], nextUid:1,
     sel:null, moveTiles:null, atkTiles:null, animLog:[],
     cam:{x:0,y:0,z:1}, mapMode:opts.mode
   };
-  // --- players ---
-  const humanTribe = TRIBES.find(t=>t.id===opts.tribe) || TRIBES[0];
-  const usedTribes = new Set([humanTribe.id]);
-  const roster = [humanTribe];
-  for(let i=0;i<opts.ai;i++){
-    let t; do{ t = pick(TRIBES); }while(usedTribes.has(t.id) && usedTribes.size < TRIBES.length);
-    usedTribes.add(t.id); roster.push(t);
+  // --- players: humans first by folklore pick, CPUs fill in, then §2 randomized turn order ---
+  const humansN=Math.max(1,Math.min(opts.humans||1,2));
+  const aiN=Math.max(0,Math.min(opts.ai, FOLKLORES.length-humansN));
+  const humanFolklore = FOLKLORES.find(t=>t.id===opts.folklore) || FOLKLORES[0];
+  const usedFolklores = new Set([humanFolklore.id]);
+  const seats=[{tr:humanFolklore,human:true}];
+  for(let i=1;i<humansN;i++){
+    const t=FOLKLORES.find(f=>!usedFolklores.has(f.id));
+    usedFolklores.add(t.id); seats.push({tr:t,human:true});
   }
-  roster.forEach((tr,i)=>{
+  for(let i=0;i<aiN;i++){
+    let t; do{ t = pick(FOLKLORES); }while(usedFolklores.has(t.id) && usedFolklores.size < FOLKLORES.length);
+    usedFolklores.add(t.id); seats.push({tr:t,human:false});
+  }
+  for(let i=seats.length-1;i>0;i--){ const j=ri(i+1); [seats[i],seats[j]]=[seats[j],seats[i]]; }   // §2: luck of the draw
+  seats.forEach((s,i)=>{
     G.players.push({
-      id:i, tribe:tr.id, name:tr.name, color:tr.color, human:(i===0),
-      stars:5, techs:new Set([tr.start]), income:0, alive:true, revealed:new Set(), visible:new Set(), score:0
+      id:i, folklore:s.tr.id, name:s.tr.name, color:s.tr.color, human:s.human,
+      influence:5, techs:new Set(), income:0, alive:true, revealed:new Set(), visible:new Set(), score:0,
+      destroyed:0, kindle:1   // §11: every folklore starts with 1 special-move charge
     });
   });
-  genTerrain();
+  G.viewer=G.players.find(p=>p.human).id;   // whose fog the screen shows
+  // §13 Insane: CPUs start with 1 extra tech
+  if(DIFFICULTY[G.diff].freeTech){
+    for(const p of G.players) if(!p.human){
+      const pool=Object.keys(TECHS).filter(id=>canResearch(p.id,id));
+      if(pool.length) p.techs.add(pool[ri(pool.length)]);
+    }
+  }
+  const world=WORLDS[wid];
+  genTerrain(world);
   placeCapitals();
   placeResources();
   scatterVillages();
+  placeLibraries(world);                                  // §4.5: every world spawns libraries
+  if(world.twist==="storytellers") placeStorytellers();   // §4.3 Booklands twist
   recomputeIncome();
   for(const p of G.players) recomputeVision(p.id);
-  centerCameraOn(capitalOf(0));
+  centerCameraOn(capitalOf(G.viewer));
   return G;
 }
 
 /* -------------------------------- MAPGEN --------------------------------- */
-function genTerrain(){
+// §4: terrain comes from the world recipe — landPct sets the water share, the land is
+// split by terrainWeights, then one majority-smoothing pass makes it clump.
+function genTerrain(world){
   const N=G.N;
-  // seed a few forest & mountain & water blobs via random walks
-  const blob=(kind,count,size)=>{
-    for(let c=0;c<count;c++){
-      let x=ri(N), y=ri(N);
-      for(let s=0;s<size;s++){
-        if(inb(x,y)) tileAt(x,y).t = kind;
-        x += ri(3)-1; y += ri(3)-1;
-        x=Math.max(0,Math.min(N-1,x)); y=Math.max(0,Math.min(N-1,y));
-      }
-    }
-  };
-  blob(T.FOREST,   Math.round(N*0.9), Math.round(N*1.1));
-  blob(T.MOUNTAIN, Math.round(N*0.5), Math.round(N*0.7));
-  blob(T.WATER,    Math.round(N*0.45),Math.round(N*0.6));
+  const waterP=1-world.landPct/100;
+  const w=world.terrainWeights, tot=w.field+w.forest+w.mountain;
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const t=tileAt(x,y);
+    if(rnd()<waterP){ t.t=T.WATER; continue; }
+    const r=rnd()*tot;
+    t.t = r<w.field? T.FIELD : (r<w.field+w.forest? T.FOREST : T.MOUNTAIN);
+  }
+  const copy=G.tiles.map(t=>t.t);
+  for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+    const counts={};
+    for(const[dx,dy]of NB8){ if(!inb(x+dx,y+dy)) continue; const k=copy[idx(x+dx,y+dy)]; counts[k]=(counts[k]||0)+1; }
+    for(const k in counts) if(counts[k]>=5) tileAt(x,y).t=+k;
+  }
+}
+// §4.5 Abandoned Libraries: librarySpawnRate per 100 tiles, on plain land only
+function placeLibraries(world){
+  const want=Math.round(G.N*G.N*world.librarySpawnRate/100);
+  let tries=0, placed=0;
+  while(placed<want && tries++<G.N*G.N*5){
+    const x=ri(G.N), y=ri(G.N), t=tileAt(x,y);
+    if(t.t===T.WATER || t.res!==R.NONE || t.lib || t.story || cityAt(x,y)) continue;
+    t.lib=true; placed++;
+  }
+}
+// §4.3 Storytellers: one-use vendors; each sells one discounted unit drawn at map-gen from a
+// random folklore's fixed roster pool (the game's only roster mixing — intentional)
+function placeStorytellers(){
+  const want=Math.max(2,Math.round(G.N*G.N/30));
+  let tries=0, placed=0;
+  while(placed<want && tries++<G.N*G.N*5){
+    const x=ri(G.N), y=ri(G.N), t=tileAt(x,y);
+    if(t.t===T.WATER || t.res!==R.NONE || t.lib || t.story || cityAt(x,y)) continue;
+    if(G.cities.some(c=>c.capital && cheb(c.x,c.y,x,y)<=2)) continue;
+    const unit=pick(Object.keys(UNITS));
+    t.story={ folk:pick(FOLKLORES).id, unit, price:Math.ceil(UNITS[unit].cost/2) };   // discount = half, rounded up (tuning)
+    placed++;
+  }
 }
 
 function placeResources(){
@@ -350,7 +535,7 @@ function placeCapitals(){
     for(const[dx,dy]of NB8){ if(inb(cx+dx,cy+dy)){ const q=tileAt(cx+dx,cy+dy); if(q.t===T.WATER)q.t=T.FIELD; } }
     const city=makeCity(cx,cy,i,true);
     G.cities.push(city);
-    spawnUnit("warrior", cx, cy, i);
+    spawnUnit("wanderer", cx, cy, i);   // §2: 1 copy of the cheapest unit on the capital
   });
 }
 function findLandNear(x,y){
@@ -379,7 +564,7 @@ function nearAnyCity(x,y,r){ return G.cities.some(c=>Math.max(Math.abs(c.x-x),Ma
 
 /* --------------------------------- CITIES -------------------------------- */
 function makeCity(x,y,owner,capital){
-  const c={ x,y, owner, capital, level: capital?1:0, pop:0, wall:false, income:0,
+  const c={ x,y, owner, capital, level: capital?1:0, listeners:0, wall:false, income:0,
             territory:[], id:G.nextUid++ };
   computeTerritory(c);
   return c;
@@ -391,7 +576,10 @@ function computeTerritory(c){
     const extra=[];
     for(const[tx,ty]of c.territory) for(const[dx,dy]of NB8){
       const nx=tx+dx,ny=ty+dy;
-      if(inb(nx,ny) && !c.territory.some(([a,b])=>a===nx&&b===ny) && !extra.some(([a,b])=>a===nx&&b===ny)) extra.push([nx,ny]);
+      if(!inb(nx,ny)) continue;
+      const ow=territoryOwner(nx,ny);
+      if(ow>=0 && ow!==c.owner) continue;   // §7.3 L4: another folklore's tiles are skipped, stay theirs
+      if(!c.territory.some(([a,b])=>a===nx&&b===ny) && !extra.some(([a,b])=>a===nx&&b===ny)) extra.push([nx,ny]);
     }
     c.territory=c.territory.concat(extra);
   }
@@ -403,7 +591,7 @@ const capitalOf=(pid)=> G.cities.find(c=>c.owner===pid&&c.capital);
 function spawnUnit(type,x,y,owner){
   const def=UNITS[type];
   const u={ uid:G.nextUid++, type, owner, x, y, hp:def.hp, maxhp:def.hp,
-            movesLeft:def.move, acted:false, vet:false };
+            movesLeft:def.move, acted:false, storied:false };
   G.units.push(u);
   return u;
 }
@@ -413,12 +601,30 @@ const unitAt=(x,y)=> G.units.find(u=>u.x===x&&u.y===y);
 const NB8=[[-1,-1],[0,-1],[1,-1],[-1,0],[1,0],[-1,1],[0,1],[1,1]];
 const cheb=(ax,ay,bx,by)=> Math.max(Math.abs(ax-bx),Math.abs(ay-by));
 
+// Which folklore's territory a tile sits in (first claiming city wins), -1 if wild.
+function territoryOwner(x,y){
+  for(const c of G.cities){
+    if(c.owner<0) continue;
+    if(c.territory.some(([a,b])=>a===x&&b===y)) return c.owner;
+  }
+  return -1;
+}
 // BFS reachable tiles for a unit given movement points & terrain, with ZOC.
+// Lore hooks: Mountain Paths gates mountains, Forest Paths drops forest cost to 1,
+// Old Roads grants +1 move from an owned field (§10.1), Thornbind ends movement on
+// entering hostile-owned forest. A unit may always take ONE step onto an enterable
+// tile even if its cost exceeds the move points (Polytopia rule — keeps move-1 units
+// able to enter costly terrain at all).
 function reachable(u){
-  const def=UNITS[u.type];
   const p=G.players[u.owner];
-  const canClimb=p.techs.has("climbing");
   const start=idx(u.x,u.y);
+  let pts=unitMovePts(u);
+  if(!u.raft){
+    const ht=tileAt(u.x,u.y);
+    if(p.techs.has("old_roads") && ht.t===T.FIELD && territoryOwner(u.x,u.y)===u.owner) pts+=1;
+  }
+  // §8.3 embark: only with Raftcraft, only starting from own territory, one step, ends move
+  const canEmbark = !u.raft && p.techs.has("raftcraft") && territoryOwner(u.x,u.y)===u.owner;
   const dist=new Map([[start,0]]);
   const q=[[u.x,u.y,0]];
   const out=[];
@@ -428,34 +634,77 @@ function reachable(u){
       const nx=x+dx,ny=y+dy;
       if(!inb(nx,ny)) continue;
       const tt=tileAt(nx,ny);
-      if(tt.t===T.WATER) continue;                       // land only
-      if(tt.t===T.MOUNTAIN && !canClimb) continue;
-      const step=TERRAIN[tt.t].move;
+      const key=idx(nx,ny);
       const other=unitAt(nx,ny);
       if(other) continue;                                // can't move through/into occupied
+      if(tt.t===T.WATER){
+        if(u.raft){                                      // rafts sail: water costs 1
+          const nd=d+1;
+          if(nd>pts) continue;
+          if(dist.has(key) && dist.get(key)<=nd) continue;
+          dist.set(key,nd); out.push([nx,ny]);
+          if(!adjacentToEnemy(nx,ny,u.owner)) q.push([nx,ny,nd]);
+        } else if(canEmbark && d===0 && !dist.has(key)){
+          dist.set(key,pts); out.push([nx,ny]);          // embark is terminal
+        }
+        continue;
+      }
+      if(tt.t===T.MOUNTAIN && !p.techs.has("mountain_paths")) continue;
+      let step=TERRAIN[tt.t].move;
+      if(tt.t===T.FOREST && p.techs.has("forest_paths")) step=1;
       const nd=d+step;
-      if(nd>def.move) continue;
-      const key=idx(nx,ny);
+      if(nd>pts){
+        if(d===0 && !dist.has(key)){ dist.set(key,pts); out.push([nx,ny]); }   // one-step guarantee (terminal)
+        continue;
+      }
       if(dist.has(key) && dist.get(key)<=nd) continue;
       dist.set(key,nd);
       out.push([nx,ny]);
-      // Zone of control: stop if this tile is adjacent to an enemy
-      if(!adjacentToEnemy(nx,ny,u.owner)) q.push([nx,ny,nd]);
+      const tOwn=territoryOwner(nx,ny);
+      const thorned = tt.t===T.FOREST && tOwn>=0 && tOwn!==u.owner && G.players[tOwn].techs.has("thornbind");
+      // Zone of control (and Thornbind): stop expanding from this tile
+      if(!adjacentToEnemy(nx,ny,u.owner) && !thorned) q.push([nx,ny,nd]);
     }
   }
   return out;
+}
+// Wildcalling (§10.1): a folklore's units in forest are invisible to a viewer until one
+// of the viewer's units stands adjacent.
+function hiddenFrom(u,pid){
+  if(u.owner===pid) return false;
+  if(!G.players[u.owner].techs.has("wildcalling")) return false;
+  if(tileAt(u.x,u.y).t!==T.FOREST) return false;
+  for(const[dx,dy]of NB8){ const e=unitAt(u.x+dx,u.y+dy); if(e&&e.owner===pid) return false; }
+  return true;
 }
 function adjacentToEnemy(x,y,owner){
   for(const[dx,dy]of NB8){ const nx=x+dx,ny=y+dy; if(inb(nx,ny)){ const e=unitAt(nx,ny); if(e && e.owner!==owner) return true; } }
   return false;
 }
+/* §8.3 vessel rule: while afloat (u.raft) a unit's combat stats are overridden —
+   move 2 (+1 Currents) · atk 0 (1 after Tidecall) · def 1 · range 1. Hp is shared:
+   damage to the raft is damage to the rider. */
+function unitAtk(u){ return u.raft? (G.players[u.owner].techs.has("tidecall")?1:0) : UNITS[u.type].atk; }
+function unitDef(u){ return u.raft? 1 : UNITS[u.type].def; }
+function unitMovePts(u){
+  if(u.raft) return 2+(G.players[u.owner].techs.has("currents")?1:0);
+  return UNITS[u.type].move;
+}
+// Effective range: rafts are range 1; Storied Crone reaches 3 (§8.2 storied effect)
+function unitRange(u){ if(u.raft) return 1; const d=UNITS[u.type]; return (u.storied && d.storiedRange)? d.storiedRange : d.range; }
+function updateRaftState(u){
+  const onWater=tileAt(u.x,u.y).t===T.WATER;
+  if(onWater && !u.raft){ u.raft=true; if(G.players[u.owner].human) toast("🛶 Embarked — stats become the raft's"); }
+  else if(!onWater && u.raft){ u.raft=false; }   // §8.3 disembark: true stats restored, hp carries
+}
 // Attack targets in range (measured from current position; ranged don't need adjacency)
 function targetsFor(u){
-  const def=UNITS[u.type];
   const out=[];
+  if(u.raft && !G.players[u.owner].techs.has("tidecall")) return out;   // §8.3: rafts can't attack until Tidecall
   for(const e of G.units){
     if(e.owner===u.owner) continue;
-    if(cheb(u.x,u.y,e.x,e.y)<=def.range) out.push(e);
+    if(hiddenFrom(e,u.owner)) continue;                  // Wildcalling
+    if(cheb(u.x,u.y,e.x,e.y)<=unitRange(u)) out.push(e);
   }
   return out;
 }
@@ -466,15 +715,19 @@ function recomputeVision(pid){
   p.visible=new Set();
   const add=(x,y,r)=>{ for(let dy=-r;dy<=r;dy++)for(let dx=-r;dx<=r;dx++){
     const nx=x+dx,ny=y+dy; if(inb(nx,ny) && cheb(x,y,nx,ny)<=r){ const k=idx(nx,ny); p.visible.add(k); p.revealed.add(k);} } };
-  for(const u of G.units) if(u.owner===pid){ const onMtn=tileAt(u.x,u.y).t===T.MOUNTAIN; add(u.x,u.y, onMtn?2:1); }
-  for(const c of G.cities) if(c.owner===pid){ add(c.x,c.y, c.capital?2:1); if(c.explorer) add(c.x,c.y,5); }
+  for(const u of G.units) if(u.owner===pid){ const onMtn=tileAt(u.x,u.y).t===T.MOUNTAIN;
+    add(u.x,u.y, (UNITS[u.type].vision||1) + (onMtn?1:0)); }   // Farlight (§8.2) + §5 mountain +1
+  for(const c of G.cities) if(c.owner===pid){ add(c.x,c.y, 2+(c.watchcairn?1:0)); if(c.explorer) add(c.x,c.y,5); }   // §5 r2 + Watch-cairn
 }
 
 /* -------------------------------- RENDER --------------------------------- */
 const cv=document.getElementById("c"), ctx=cv.getContext("2d");
-let DPR=1, TS=54; // base tile size in world units
+let DPR=1, lastW=0, lastH=0;
+const TW=64, TH=32;   // iso diamond footprint in world units (§3: isometric "diamond" view)
+const tileWorld=(x,y)=>({wx:(x-y)*TW/2, wy:(x+y)*TH/2});   // tile centres in world space
 function resize(){
   DPR=Math.min(2,window.devicePixelRatio||1);
+  lastW=innerWidth; lastH=innerHeight;
   cv.width=innerWidth*DPR; cv.height=innerHeight*DPR;
   cv.style.width=innerWidth+"px"; cv.style.height=innerHeight+"px";
 }
@@ -483,140 +736,140 @@ addEventListener("resize",resize); resize();
 function centerCameraOn(c){
   if(!c) return;
   G.cam.z=1;
-  G.cam.x = c.x*TS + TS/2 - innerWidth/2;
-  G.cam.y = c.y*TS + TS/2 - innerHeight/2;
+  const w=tileWorld(c.x,c.y);
+  G.cam.x = w.wx - innerWidth/2;
+  G.cam.y = w.wy - innerHeight/2;
 }
 const worldToScreen=(wx,wy)=>({x:(wx-G.cam.x)*G.cam.z, y:(wy-G.cam.y)*G.cam.z});
 const screenToWorld=(sx,sy)=>({x:sx/G.cam.z+G.cam.x, y:sy/G.cam.z+G.cam.y});
 function tileFromScreen(sx,sy){
   const w=screenToWorld(sx,sy);
-  const x=Math.floor(w.x/TS), y=Math.floor(w.y/TS);
+  const x=Math.round((w.x/(TW/2) + w.y/(TH/2))/2), y=Math.round((w.y/(TH/2) - w.x/(TW/2))/2);
   return inb(x,y)?{x,y}:null;
 }
+function diamond(px,py,z){
+  ctx.beginPath();
+  ctx.moveTo(px, py-TH/2*z); ctx.lineTo(px+TW/2*z, py);
+  ctx.lineTo(px, py+TH/2*z); ctx.lineTo(px-TW/2*z, py);
+  ctx.closePath();
+}
+const EMOJI_FONT=(px)=>`${Math.round(px)}px "Segoe UI Emoji","Apple Color Emoji",serif`;
 
 function draw(){
   if(!G){ requestAnimationFrame(draw); return; }
+  if(innerWidth!==lastW || innerHeight!==lastH) resize();   // some hosts size the window after load
   ctx.setTransform(DPR,0,0,DPR,0,0);
-  ctx.clearRect(0,0,cv.width,cv.height);
-  ctx.fillStyle="#0c0f14"; ctx.fillRect(0,0,innerWidth,innerHeight);
-  const z=G.cam.z, ts=TS*z;
-  const p=G.players[0];
+  ctx.fillStyle="#0e1424"; ctx.fillRect(0,0,innerWidth,innerHeight);
+  const z=G.cam.z;
   const seenTeam = viewingPlayer();
+  ctx.textAlign="center"; ctx.textBaseline="middle";
 
-  // visible tile window
-  const x0=Math.max(0,Math.floor(G.cam.x/TS)), y0=Math.max(0,Math.floor(G.cam.y/TS));
-  const x1=Math.min(G.N-1,Math.floor((G.cam.x+innerWidth/z)/TS));
-  const y1=Math.min(G.N-1,Math.floor((G.cam.y+innerHeight/z)/TS));
-
-  for(let y=y0;y<=y1;y++)for(let x=x0;x<=x1;x++){
-    const s=worldToScreen(x*TS,y*TS);
+  // tiles (flat diamonds — any order)
+  for(let y=0;y<G.N;y++)for(let x=0;x<G.N;x++){
+    const w=tileWorld(x,y), s=worldToScreen(w.wx,w.wy);
+    if(s.x<-TW*z||s.x>innerWidth+TW*z||s.y<-TH*z||s.y>innerHeight+TH*z) continue;
     const k=idx(x,y);
     const explored=seenTeam.revealed.has(k), visible=seenTeam.visible.has(k);
-    if(!explored){ ctx.fillStyle="#0c0f14"; ctx.fillRect(s.x,s.y,ts+1,ts+1); continue; }
-    const t=tileAt(x,y), ter=TERRAIN[t.t];
-    // tile body with vertical gradient
-    const g=ctx.createLinearGradient(0,s.y,0,s.y+ts);
-    g.addColorStop(0,ter.top); g.addColorStop(1,ter.bot);
-    ctx.fillStyle=g; ctx.fillRect(s.x,s.y,ts+1,ts+1);
-    // grid line
-    ctx.strokeStyle="rgba(0,0,0,.18)"; ctx.lineWidth=1; ctx.strokeRect(s.x+.5,s.y+.5,ts,ts);
-    // mountain cap / forest tufts (little flair)
-    if(t.t===T.MOUNTAIN){ ctx.fillStyle="rgba(255,255,255,.5)"; ctx.beginPath();
-      ctx.moveTo(s.x+ts*.5,s.y+ts*.2); ctx.lineTo(s.x+ts*.68,s.y+ts*.52); ctx.lineTo(s.x+ts*.32,s.y+ts*.52); ctx.closePath(); ctx.fill(); }
-    if(t.t===T.WATER){ ctx.strokeStyle="rgba(255,255,255,.18)"; ctx.beginPath();
-      ctx.moveTo(s.x+ts*.2,s.y+ts*.6); ctx.quadraticCurveTo(s.x+ts*.35,s.y+ts*.5,s.x+ts*.5,s.y+ts*.6);
-      ctx.quadraticCurveTo(s.x+ts*.65,s.y+ts*.7,s.x+ts*.8,s.y+ts*.6); ctx.stroke(); }
-    // resource icon
-    if(t.res!==R.NONE && ts>26){ ctx.font=`${Math.round(ts*0.4)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
-      ctx.fillText(RESOURCE[t.res].icon, s.x+ts*.5, s.y+ts*.5); }
-    // fog dimming for explored-but-not-visible
-    if(!visible){ ctx.fillStyle="rgba(6,9,13,.45)"; ctx.fillRect(s.x,s.y,ts+1,ts+1); }
+    if(!explored){ diamond(s.x,s.y,z); ctx.fillStyle="#0a0f1c"; ctx.fill(); continue; }
+    const t=tileAt(x,y);
+    diamond(s.x,s.y,z);
+    ctx.fillStyle=TERRAIN[t.t].top; ctx.fill();
+    ctx.strokeStyle="rgba(0,0,0,.22)"; ctx.lineWidth=1; ctx.stroke();
+    if(t.lib && z>.5){ ctx.font=EMOJI_FONT(12*z); ctx.fillText("📚", s.x, s.y-3*z); }
+    else if(t.story && z>.5){ ctx.font=EMOJI_FONT(12*z); ctx.fillText("🎭", s.x, s.y-3*z); }
+    else if(t.res!==R.NONE && z>.5){ ctx.font=EMOJI_FONT(12*z); ctx.fillText(RESOURCE[t.res].icon, s.x, s.y-3*z); }
+    else if(t.t===T.FOREST && z>.5){ ctx.font=EMOJI_FONT(13*z); ctx.fillText("🌲", s.x, s.y-4*z); }
+    else if(t.t===T.MOUNTAIN && z>.5){ ctx.font=EMOJI_FONT(13*z); ctx.fillText("⛰️", s.x, s.y-4*z); }
+    if(!visible){ diamond(s.x,s.y,z); ctx.fillStyle="rgba(6,9,13,.45)"; ctx.fill(); }
   }
 
-  // territory outlines for viewer's cities
+  // territory outlines for revealed cities
   for(const c of G.cities){
-    if(!seenTeam.revealed.has(idx(c.x,c.y))) continue;
     if(c.owner<0) continue;
-    ctx.strokeStyle = hexA(G.players[c.owner].color,.5); ctx.lineWidth=2;
+    ctx.strokeStyle = hexA(G.players[c.owner].color,.5); ctx.lineWidth=1.5;
     for(const[tx,ty]of c.territory){
-      if(!inb(tx,ty)) continue;
-      const s=worldToScreen(tx*TS,ty*TS);
-      ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4);
+      if(!inb(tx,ty) || !seenTeam.revealed.has(idx(tx,ty))) continue;
+      const w2=tileWorld(tx,ty), s2=worldToScreen(w2.wx,w2.wy);
+      diamond(s2.x,s2.y,z*.92); ctx.stroke();
     }
-  }
-
-  // cities
-  for(const c of G.cities){
-    const k=idx(c.x,c.y);
-    if(!seenTeam.revealed.has(k)) continue;
-    const s=worldToScreen(c.x*TS,c.y*TS);
-    drawCity(c,s.x,s.y,ts, seenTeam.visible.has(k));
   }
 
   // movement / attack highlights (only for viewer during their turn)
   if(isHumanTurn() && G.sel){
-    if(G.moveTiles) for(const[x,y]of G.moveTiles){ const s=worldToScreen(x*TS,y*TS);
-      ctx.fillStyle="rgba(94,194,255,.28)"; ctx.fillRect(s.x+2,s.y+2,ts-4,ts-4);
-      ctx.strokeStyle="rgba(94,194,255,.8)"; ctx.lineWidth=2; ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4); }
-    if(G.atkTiles) for(const e of G.atkTiles){ const s=worldToScreen(e.x*TS,e.y*TS);
-      ctx.strokeStyle="rgba(255,107,107,.95)"; ctx.lineWidth=3; ctx.strokeRect(s.x+3,s.y+3,ts-6,ts-6); }
-    const s=worldToScreen(G.sel.x*TS,G.sel.y*TS);
-    ctx.strokeStyle="var(--gold)"; ctx.strokeStyle="#ffd75e"; ctx.lineWidth=3; ctx.strokeRect(s.x+2,s.y+2,ts-4,ts-4);
+    if(G.moveTiles) for(const[mx,my]of G.moveTiles){ const w2=tileWorld(mx,my), s2=worldToScreen(w2.wx,w2.wy);
+      diamond(s2.x,s2.y,z*.9); ctx.fillStyle="rgba(94,194,255,.30)"; ctx.fill();
+      ctx.strokeStyle="rgba(94,194,255,.85)"; ctx.lineWidth=1.5; ctx.stroke(); }
+    if(G.atkTiles) for(const e of G.atkTiles){ const w2=tileWorld(e.x,e.y), s2=worldToScreen(w2.wx,w2.wy);
+      diamond(s2.x,s2.y,z*.9); ctx.strokeStyle="rgba(255,107,107,.95)"; ctx.lineWidth=2.5; ctx.stroke(); }
+    const w3=tileWorld(G.sel.x,G.sel.y), s3=worldToScreen(w3.wx,w3.wy);
+    diamond(s3.x,s3.y,z*.96); ctx.strokeStyle="#ffd75e"; ctx.lineWidth=2.5; ctx.stroke();
   }
 
-  // units
-  for(const u of G.units){
-    const k=idx(u.x,u.y);
-    if(!seenTeam.visible.has(k) && u.owner!==viewIndex()) { if(!seenTeam.visible.has(k)) continue; }
-    const s=worldToScreen(u.x*TS,u.y*TS);
-    drawUnit(u,s.x,s.y,ts);
-  }
+  // cities & units in painter's order (front rows drawn last)
+  const draws=[];
+  for(const c of G.cities) if(seenTeam.revealed.has(idx(c.x,c.y))) draws.push({o:c.x+c.y, city:c});
+  for(const u of G.units) if(seenTeam.visible.has(idx(u.x,u.y)) && !hiddenFrom(u,viewIndex())) draws.push({o:u.x+u.y+.1, unit:u});
+  draws.sort((a,b)=>a.o-b.o);
+  for(const d of draws) d.city? drawCity(d.city, z, seenTeam) : drawUnit(d.unit, z);
 
   requestAnimationFrame(draw);
 }
 
-function drawCity(c,x,y,ts,visible){
+function drawCity(c,z,seenTeam){
+  const w=tileWorld(c.x,c.y), s=worldToScreen(w.wx,w.wy);
+  const visible=seenTeam.visible.has(idx(c.x,c.y));
   const col = c.owner<0? "#9aa6b4" : G.players[c.owner].color;
-  const cx=x+ts*.5, cy=y+ts*.55, w=ts*.42;
-  // base
-  ctx.fillStyle= visible? col : hexA(col,.6);
-  roundRect(cx-w/2, cy-w*0.42, w, w*0.7, 4); ctx.fill();
-  // roof
-  ctx.beginPath(); ctx.moveTo(cx-w/2-2,cy-w*0.42); ctx.lineTo(cx,cy-w*0.9); ctx.lineTo(cx+w/2+2,cy-w*0.42); ctx.closePath();
-  ctx.fillStyle= shade(col,-30); ctx.fill();
+  // coin
+  ctx.beginPath(); ctx.ellipse(s.x,s.y,13*z,8*z,0,0,Math.PI*2);
+  ctx.fillStyle= visible? col : hexA(col,.55); ctx.fill();
+  ctx.strokeStyle="rgba(0,0,0,.4)"; ctx.lineWidth=1; ctx.stroke();
   // wall ring
-  if(c.wall){ ctx.strokeStyle="#ffd75e"; ctx.lineWidth=2; ctx.strokeRect(x+ts*.15,y+ts*.15,ts*.7,ts*.7); }
-  // capital star
-  if(c.capital){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(ts*.24)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillText("★",cx,y+ts*.16); }
-  // level pips / neutral mark
-  if(ts>24){
-    ctx.textAlign="center"; ctx.textBaseline="middle"; ctx.fillStyle="#0c0f14";
-    ctx.font=`bold ${Math.round(ts*.24)}px Inter,sans-serif`;
-    ctx.fillText(c.owner<0? "·" : String(c.level), cx, cy-w*0.05);
+  if(c.wall){ ctx.beginPath(); ctx.ellipse(s.x,s.y,15.5*z,10*z,0,0,Math.PI*2);
+    ctx.strokeStyle="#ffd75e"; ctx.lineWidth=Math.max(1.5,2*z); ctx.stroke(); }
+  // §7.1 converting cue: dashed ring in the besieger's colour
+  if(c.convert){
+    ctx.setLineDash([4*z,3*z]);
+    ctx.beginPath(); ctx.ellipse(s.x,s.y,17.5*z,11.5*z,0,0,Math.PI*2);
+    ctx.strokeStyle=G.players[c.convert.by].color; ctx.lineWidth=Math.max(1.5,2*z); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.font=EMOJI_FONT(16*z);
+  ctx.fillText(c.capital?"🏛️":"🏠", s.x, s.y-8*z);
+  if(c.capital && z>.5){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(8*z)}px serif`; ctx.fillText("★", s.x+12*z, s.y-12*z); }
+  if(z>.5){
+    ctx.fillStyle="#0c0f14";
+    ctx.font=`bold ${Math.round(9*z)}px Georgia`;
+    ctx.fillText(c.owner<0? "·" : String(c.level), s.x, s.y+2*z);
   }
 }
 
-function drawUnit(u,x,y,ts){
+function drawUnit(u,z){
   const def=UNITS[u.type], col=G.players[u.owner].color;
-  const cx=x+ts*.5, cy=y+ts*.5, r=ts*.32;
+  const w=tileWorld(u.x,u.y), s=worldToScreen(w.wx,w.wy);
+  const px=s.x, py=s.y-6*z, r=10.5*z;
   // shadow
-  ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(cx,cy+r*.7,r*.9,r*.35,0,0,7); ctx.fill();
+  ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(px,s.y+3*z,r*.85,r*.32,0,0,Math.PI*2); ctx.fill();
   // token
-  ctx.fillStyle=col; ctx.strokeStyle= (u.owner===0? "#fff":"#0c0f14"); ctx.lineWidth=2;
-  ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); ctx.stroke();
-  // "done" dim
-  if(u.owner===viewIndex() && isHumanTurn() && u.acted && u.movesLeft<=0){ ctx.fillStyle="rgba(6,9,13,.5)"; ctx.beginPath(); ctx.arc(cx,cy,r,0,7); ctx.fill(); }
+  ctx.fillStyle=col; ctx.strokeStyle= (u.owner===viewIndex()? "#fff":"#0c0f14"); ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  // raft under the rider (§8.3: the character's icon rides visibly on the raft)
+  if(u.raft){ ctx.font=EMOJI_FONT(r*1.25); ctx.textAlign="center"; ctx.textBaseline="middle";
+    ctx.fillText("🛶", px, py+r*0.6); }
   // glyph
-  ctx.fillStyle= pickText(col); ctx.font=`${Math.round(r*1.15)}px serif`; ctx.textAlign="center"; ctx.textBaseline="middle";
-  ctx.fillText(def.icon,cx,cy+1);
+  ctx.fillStyle= pickText(col); ctx.font=EMOJI_FONT(r*1.15); ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText(def.icon,px,py+(u.raft?-2:1));
+  // "done" dim
+  if(u.owner===viewIndex() && isHumanTurn() && u.acted && u.movesLeft<=0){
+    ctx.fillStyle="rgba(6,9,13,.5)"; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill(); }
   // hp bar
-  if(u.hp<u.maxhp && ts>22){
-    const bw=r*2, bx=cx-r, by=cy-r-6;
-    ctx.fillStyle="#0c0f14"; ctx.fillRect(bx,by,bw,4);
+  if(u.hp<u.maxhp && z>.5){
+    const bw=r*1.8, bx=px-bw/2, by=py-r-5*z;
+    ctx.fillStyle="#0c0f14"; ctx.fillRect(bx,by,bw,3*z);
     ctx.fillStyle= u.hp/u.maxhp>.5? "#57d38c" : (u.hp/u.maxhp>.25?"#ffd75e":"#ff6b6b");
-    ctx.fillRect(bx,by,bw*(u.hp/u.maxhp),4);
+    ctx.fillRect(bx,by,bw*(u.hp/u.maxhp),3*z);
   }
-  if(u.vet && ts>22){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(r*.7)}px serif`; ctx.fillText("✦",cx+r*.8,cy-r*.7); }
+  if(u.storied && z>.5){ ctx.fillStyle="#ffd75e"; ctx.font=`${Math.round(r*.7)}px Georgia`; ctx.fillText("✦",px+r*.85,py-r*.75); }
 }
 
 /* helpers */
@@ -627,22 +880,55 @@ function pickText(hex){ const c=hx(hex); const lum=0.299*c[0]+0.587*c[1]+0.114*c
 function hx(h){ h=h.replace("#",""); if(h.length===3)h=h.split("").map(c=>c+c).join(""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
 const clamp=(v)=>Math.max(0,Math.min(255,v));
 
-function viewIndex(){ return 0; }            // human always views as player 0
-function viewingPlayer(){ return G.players[0]; }
-function isHumanTurn(){ return G.current===0 && !G.over; }
+/* hot-seat: the screen renders the fog of G.viewer (the last human whose turn started) */
+function viewIndex(){ return G.viewer||0; }
+function viewingPlayer(){ return G.players[viewIndex()]; }
+function isHumanTurn(){ return !G.over && G.players[G.current].human; }
+function multiHuman(){ return G.players.filter(p=>p.human).length>1; }
+function showCurtain(pid){
+  const p=G.players[pid];
+  el("curtainName").textContent=p.name;
+  el("curtainName").style.color=p.color;
+  el("curtain").classList.add("on");
+}
+
 
 /* --------------------------------- INPUT --------------------------------- */
-let drag=null, dragged=false;
-cv.addEventListener("pointerdown",e=>{ drag={x:e.clientX,y:e.clientY,cx:G.cam.x,cy:G.cam.y}; dragged=false; cv.setPointerCapture(e.pointerId); });
+const pointers=new Map();
+let downPos=null, dragCam=null, dragged=false, pinchPrev=null;
+cv.addEventListener("pointerdown",e=>{
+  if(!G) return;
+  cv.setPointerCapture(e.pointerId);
+  pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
+  if(pointers.size===1){ downPos={x:e.clientX,y:e.clientY}; dragCam={x:G.cam.x,y:G.cam.y}; dragged=false; }
+  else if(pointers.size===2){ const[a,b]=[...pointers.values()]; pinchPrev=Math.hypot(a.x-b.x,a.y-b.y); dragged=true; }
+});
 cv.addEventListener("pointermove",e=>{
-  if(!drag) return;
-  const dx=e.clientX-drag.x, dy=e.clientY-drag.y;
-  if(Math.abs(dx)+Math.abs(dy)>6) dragged=true;
-  G.cam.x=drag.cx-dx/G.cam.z; G.cam.y=drag.cy-dy/G.cam.z;
+  const p=pointers.get(e.pointerId);
+  if(!p || !G) return;
+  p.x=e.clientX; p.y=e.clientY;
+  if(pointers.size===2 && pinchPrev){                       // two-finger pinch zoom
+    const[a,b]=[...pointers.values()];
+    const d=Math.hypot(a.x-b.x,a.y-b.y), mid={x:(a.x+b.x)/2,y:(a.y+b.y)/2};
+    if(d>0 && pinchPrev>0) zoomAt(mid.x,mid.y, d/pinchPrev);
+    pinchPrev=d;
+    return;
+  }
+  if(downPos && Math.abs(e.clientX-downPos.x)+Math.abs(e.clientY-downPos.y)>6) dragged=true;
+  if(dragged && pointers.size===1 && dragCam && downPos){
+    G.cam.x=dragCam.x-(e.clientX-downPos.x)/G.cam.z;
+    G.cam.y=dragCam.y-(e.clientY-downPos.y)/G.cam.z;
+  }
 });
 cv.addEventListener("pointerup",e=>{
-  if(!dragged){ handleTap(e.clientX,e.clientY); }
-  drag=null;
+  pointers.delete(e.pointerId);
+  if(pointers.size<2) pinchPrev=null;
+  if(!dragged && downPos && pointers.size===0) handleTap(e.clientX,e.clientY);
+  if(pointers.size===0){ downPos=null; dragCam=null; dragged=false; }
+});
+cv.addEventListener("pointercancel",e=>{
+  pointers.delete(e.pointerId);
+  if(pointers.size===0){ downPos=null; dragCam=null; dragged=false; pinchPrev=null; }
 });
 cv.addEventListener("wheel",e=>{ e.preventDefault(); zoomAt(e.clientX,e.clientY, e.deltaY<0?1.12:1/1.12); },{passive:false});
 function zoomAt(sx,sy,f){
@@ -654,10 +940,25 @@ function zoomAt(sx,sy,f){
 document.getElementById("btnZin").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1.2);
 document.getElementById("btnZout").onclick=()=>zoomAt(innerWidth/2,innerHeight/2,1/1.2);
 
+/* §11 Kindle: spend a charge to permanently reveal a 7×7 area anywhere on the map */
+let kindleMode=false;
+function doKindle(x,y){
+  const p=viewingPlayer();
+  kindleMode=false;
+  if(p.kindle>0){
+    p.kindle--;
+    for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)
+      if(inb(x+dx,y+dy)) p.revealed.add(idx(x+dx,y+dy));
+    toast("🕯 Kindled — the land is remembered");
+    save();
+  }
+  renderActions();
+}
 function handleTap(sx,sy){
   if(G.over || !isHumanTurn()) return;
   const c=tileFromScreen(sx,sy); if(!c) return;
   const {x,y}=c;
+  if(kindleMode){ doKindle(x,y); return; }
 
   // 1) If a unit is selected and we tapped an attack target -> attack
   if(G.sel && G.atkTiles){
@@ -670,10 +971,10 @@ function handleTap(sx,sy){
   }
   // 3) Select a friendly unit
   const u=unitAt(x,y);
-  if(u && u.owner===0){ selectUnit(u); return; }
+  if(u && u.owner===viewIndex()){ selectUnit(u); return; }
   // 4) Select own city
   const city=cityAt(x,y);
-  if(city && city.owner===0){ clearSel(); openCity(city); return; }
+  if(city && city.owner===viewIndex()){ clearSel(); openCity(city); return; }
   // 5) tapping a resource tile in your territory -> context card w/ harvest
   clearSel();
   showTileCard(x,y);
@@ -691,8 +992,10 @@ function clearSel(){ G.sel=null; G.moveTiles=null; G.atkTiles=null; ctxcard.styl
 
 /* ------------------------------- RULES ----------------------------------- */
 function doMove(u,x,y){
-  // compute path cost via reachable BFS distance (recompute quick)
+  abandonSiege(u);                        // walking off a converting city resets it
   u.x=x; u.y=y;
+  updateRaftState(u);                     // §8.3 embark/disembark
+  collectTile(u);                         // §4.5 libraries / §4.3 storytellers
   u.movesLeft=0;                          // simple: any move spends the turn's movement
   recomputeVision(u.owner);
   // dash units may still attack after moving
@@ -705,8 +1008,86 @@ function doMove(u,x,y){
   autoCapturePrompt(u);
 }
 function autoCapturePrompt(u){
-  const city=cityAt(u.x,u.y);
-  if(city && city.owner!==u.owner){ /* capture available via action button */ renderActions(); }
+  beginSiege(u);                          // §7.1: converting cue shows immediately
+  if(cityUnder(u)) renderActions();
+}
+
+/* §4.5 Libraries GIVE (one-use, consumed on entry); §4.3 Storytellers SELL (vanish on purchase). */
+function freeLandNear(x,y){
+  for(const[dx,dy]of NB8){
+    const nx=x+dx,ny=y+dy;
+    if(inb(nx,ny) && tileAt(nx,ny).t!==T.WATER && !unitAt(nx,ny) && !cityAt(nx,ny)) return [nx,ny];
+  }
+  return null;
+}
+function collectTile(u){
+  const t=tileAt(u.x,u.y), p=G.players[u.owner];
+  if(t.lib){
+    t.lib=false;
+    const roll=rnd()*100;   // §4.5 weights: 30 influence / 25 lore / 25 listener / 15 reveal / 5 unit
+    let msg;
+    if(roll<30){ p.influence+=5; msg="+5 Influence"; }
+    else if(roll<55){
+      const pool=Object.keys(TECHS).filter(id=>canResearch(u.owner,id));
+      if(pool.length){ const id=pool[ri(pool.length)]; p.techs.add(id); msg=`free lore — ${TECHS[id].name}`; }
+      else{ p.influence+=5; msg="+5 Influence"; }
+    }
+    else if(roll<80){
+      const mine=G.cities.filter(c=>c.owner===u.owner)
+        .sort((a,b)=>cheb(a.x,a.y,u.x,u.y)-cheb(b.x,b.y,u.x,u.y))[0];
+      if(mine){ addListeners(mine,1); msg="+1 Listener to the nearest city"; }
+      else{ p.influence+=5; msg="+5 Influence"; }
+    }
+    else if(roll<95){
+      for(let dy=-2;dy<=2;dy++)for(let dx=-2;dx<=2;dx++)
+        if(inb(u.x+dx,u.y+dy)) p.revealed.add(idx(u.x+dx,u.y+dy));
+      msg="the shelves reveal the land";
+    }
+    else{
+      const spot=freeLandNear(u.x,u.y);
+      if(spot && canFieldMore(u.owner)){ spawnUnit("wanderer",spot[0],spot[1],u.owner); msg="a free Wanderer steps out"; }
+      else{ p.influence+=5; msg="+5 Influence"; }
+    }
+    if(G.players[u.owner].human){ toast(`📚 Abandoned Library: ${msg}`); }
+    recomputeIncome(); recomputeVision(u.owner); renderHUD();
+  }
+  if(t.story){
+    if(G.players[u.owner].human) offerStoryteller(t,u);
+    else aiBuyStoryteller(t,u);
+  }
+}
+function offerStoryteller(t,u){
+  const p=G.players[u.owner], s=t.story, d=UNITS[s.unit];
+  const folkName=(FOLKLORES.find(f=>f.id===s.folk)||FOLKLORES[0]).name;
+  const can=p.influence>=s.price && canFieldMore(u.owner) && !!freeLandNear(u.x,u.y);
+  openModal("🎭 The Storyteller",`A tale of the ${folkName}, sold once and then gone.`,`
+    <div class="card" style="cursor:default">
+      <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">📜${s.price}</span></div>
+      <div class="d">“${d.tagline}” — ATK ${d.atk} · DEF ${d.def} · MOV ${d.move} · RNG ${d.range}</div>
+    </div>
+    ${can?"":'<div class="d" style="color:#8ea0b5;margin-top:6px">Needs Influence, army room and a free neighbouring land tile.</div>'}
+    <div style="display:flex;gap:8px;margin-top:10px">
+      <button class="btn primary" id="stBuy" style="flex:1" ${can?"":"disabled"}>Buy</button>
+      <button class="btn" id="stNo" style="flex:1">Not today</button>
+    </div>`);
+  el("stNo").onclick=()=>el("scrim").classList.remove("on");
+  el("stBuy").onclick=()=>{
+    const sp=freeLandNear(u.x,u.y);
+    if(!(p.influence>=s.price && canFieldMore(u.owner) && sp)) return;
+    p.influence-=s.price; t.story=null;                    // §4.3: vanishes on purchase
+    spawnUnit(s.unit,sp[0],sp[1],u.owner);
+    toast(`${d.name} joins your telling`);
+    recomputeVision(u.owner); renderHUD(); el("scrim").classList.remove("on"); save();
+  };
+}
+function aiBuyStoryteller(t,u){
+  const p=G.players[u.owner], s=t.story;
+  const spot=freeLandNear(u.x,u.y);
+  if(p.influence>=s.price && canFieldMore(u.owner) && spot){
+    p.influence-=s.price; t.story=null;
+    spawnUnit(s.unit,spot[0],spot[1],u.owner);
+    recomputeVision(u.owner);
+  }
 }
 
 // Polytopia combat model
@@ -714,13 +1095,22 @@ function combat(att,def,ranged){
   const aDef=UNITS[att.type], dDef=UNITS[def.type];
   const dTile=tileAt(def.x,def.y);
   let defBonus=TERRAIN[dTile.t].defBonus;
+  const dp=G.players[def.owner];
+  if(dTile.t===T.MOUNTAIN && dp.techs.has("stonereading")) defBonus=2.0;   // Stonereading (§10.1)
+  if(dTile.t===T.FOREST   && dp.techs.has("forest_paths")) defBonus=2.0;   // Forest Paths (§10.1)
   const dCity=cityAt(def.x,def.y);
-  if(dCity && dCity.owner===def.owner){ defBonus=dCity.wall?WALL_DEF_BONUS:CITY_DEF_BONUS; }
-  const aForce=aDef.atk*(att.hp/att.maxhp);
-  const dForce=dDef.def*(def.hp/def.maxhp)*defBonus;
+  if(dCity && dCity.owner===def.owner){
+    defBonus=dCity.wall?WALL_DEF_BONUS:CITY_DEF_BONUS;
+    if(dCity.shrinestone) defBonus+=0.5;                  // Shrine-stone (§10.1 Hearthward)
+    if(dCity.shrine) defBonus+=0.5;                       // Shrine (§7.3 L3 reward)
+  }
+  if(dCity && dDef.cityDefSig) defBonus+=dDef.cityDefSig;   // Hearthbound (§8.2): any city tile, owned or not
+  const aAtk=unitAtk(att), dDefV=unitDef(def);           // §8.3 raft overrides flow through here
+  const aForce=aAtk*(att.hp/att.maxhp);
+  const dForce=dDefV*(def.hp/def.maxhp)*defBonus;
   const total=aForce+dForce || 1;
-  const atkDmg=Math.round((aForce/total)*aDef.atk*4.5);
-  const defDmg=Math.round((dForce/total)*dDef.def*4.5);
+  const atkDmg=Math.round((aForce/total)*aAtk*4.5);
+  const defDmg=Math.round((dForce/total)*dDefV*4.5);
   return {atkDmg,defDmg};
 }
 function doAttack(att,def){
@@ -731,12 +1121,11 @@ function doAttack(att,def){
   let killed=false, msg=`${UNITS[att.type].name} hits ${UNITS[def.type].name} −${atkDmg}`;
   if(def.hp<=0){
     removeUnit(def); killed=true; msg=`${UNITS[att.type].name} destroys ${UNITS[def.type].name}!`;
-    att.vet=att.vet; // (veteran system light)
+    makeStoried(att);
     // melee kill: attacker may advance into tile (Polytopia-style)
     if(!ranged){ /* stay put; keep it simple & safe */ }
-  } else if(!ranged){
-    // retaliation for surviving melee defender
-    att.hp-=defDmg; if(att.hp<=0){ removeUnit(att); }
+  } else {
+    retaliate(att,def,defDmg);   // §9.2 replaces full melee retaliation
   }
   toast(msg);
   att.attacked=true; att.movesLeft=0;
@@ -746,12 +1135,54 @@ function doAttack(att,def){
   clearSel();
 }
 function removeUnit(u){ const i=G.units.indexOf(u); if(i>=0)G.units.splice(i,1); if(G.sel===u)clearSel(); }
+// §8.4 Storied: landing a kill heals to full and grants +5 max hp, marked ✦.
+// (Per-unit storied.effect extras arrive with the Toltales roster.)
+function makeStoried(u){
+  if(u.storied) return;
+  u.storied=true; u.maxhp+=5; u.hp=u.maxhp;
+  const p=G.players[u.owner];
+  p.kindle=(p.kindle||0)+1;                 // §8.4 Lantern Court bonus: +1 Kindle per Storied
+  if(p.human){ toast(`✦ ${UNITS[u.type].name} is now Storied — +1 Kindle`); renderActions(); }
+}
+// §9.2 Toltales retaliation: one auto-counter at 25% of the §9.1 defender damage, only if
+// the defender survived, the attacker is within the defender's range, AND the defending
+// PLAYER can visually see the attacker's tile (their fog is cleared and lit there).
+// The attacker never counters the counter — no endless loop. Ranged attacks from outside
+// the defender's range or from unseen tiles draw no retaliation (the Farlight exploit).
+function retaliate(att,def,defDmg){
+  const d=cheb(att.x,att.y,def.x,def.y);
+  if(d>unitRange(def)) return;                                    // range gate
+  recomputeVision(def.owner);                                     // fog can be stale mid-enemy-turn
+  if(!G.players[def.owner].visible.has(idx(att.x,att.y))) return; // fog gate: defender's player sees the tile
+  att.hp-=Math.round(defDmg*0.25);
+  if(att.hp<=0){ removeUnit(att); makeStoried(def); }
+}
 
-function canCapture(u){ const c=cityAt(u.x,u.y); return c && c.owner!==u.owner; }
+/* §7.1 two-turn capture: standing on a foreign city starts "converting" (c.convert).
+   Holds tick at the besieger's own turn start; Take City needs 1 hold (2 with a wall).
+   Attacks on the sieging unit do NOT reset the siege — only leaving or dying does. */
+function cityUnder(u){ const c=cityAt(u.x,u.y); return (c && c.owner!==u.owner)? c : null; }
+function siegeNeed(c){ return 1+(c.wall?1:0); }   // §7.1: walls add +1 siege turn
+function beginSiege(u){
+  const c=cityUnder(u); if(!c) return;
+  if(!c.convert || c.convert.by!==u.owner){
+    c.convert={by:u.owner, holds:0};
+    if(G.players[u.owner].human) toast(`Converting… hold for ${siegeNeed(c)} turn${siegeNeed(c)>1?"s":""}`);
+  }
+}
+function abandonSiege(u){
+  const c=cityAt(u.x,u.y);
+  if(c && c.convert && c.convert.by===u.owner) c.convert=null;
+}
+function canCapture(u){
+  const c=cityUnder(u);
+  return !!(c && c.convert && c.convert.by===u.owner && c.convert.holds>=siegeNeed(c));
+}
 function doCapture(u){
   const c=cityAt(u.x,u.y); if(!c||c.owner===u.owner) return;
+  if(!canCapture(u)) return;
   const wasCapital=c.capital, prev=c.owner;
-  c.owner=u.owner;
+  c.owner=u.owner; c.convert=null;
   if(c.owner>=0 && c.level===0) c.level=1;
   c.capital = c.capital && false;           // captured capitals stop being *their* capital seat
   if(wasCapital){ c.capital=true; /* becomes a normal high-value city of new owner */ }
@@ -759,7 +1190,7 @@ function doCapture(u){
   toast(`Captured ${wasCapital?"a capital":"a "+(prev<0?"village":"city")}!`);
   u.acted=true; u.movesLeft=0;
   recomputeIncome(); recomputeVision(u.owner);
-  checkElimination();
+  checkElimination(u.owner);
   clearSel();
 }
 
@@ -774,31 +1205,45 @@ function doHarvest(px,py,owner){
   const t=tileAt(px,py); const rd=RESOURCE[t.res];
   const city=G.cities.find(c=>c.owner===owner && c.territory.some(([a,b])=>a===px&&b===py));
   if(!city) return;
-  addPop(city, rd.pop);
+  addListeners(city, rd.listeners);
   t.res=R.NONE;
-  toast(`Harvested ${rd.name} +${rd.pop} pop`);
+  toast(`Harvested ${rd.name} +${rd.listeners} Listeners`);
   ctxcard.style.display="none";
   recomputeIncome();
 }
 
-/* ------------------------------ CITY / POP -------------------------------- */
-function addPop(city,n){
-  city.pop+=n;
-  while(city.pop >= city.level+1){
-    city.pop-=(city.level+1);
+/* --------------------------- CITY / LISTENERS ----------------------------- */
+function addListeners(city,n){
+  city.listeners+=n;
+  while(city.listeners >= city.level+1){
+    city.listeners-=(city.level+1);
     city.level++;
-    if(city.owner===0) offerLevelReward(city);
+    if(city.owner<0) continue;
+    if(G.players[city.owner].human) offerLevelReward(city);
     else aiLevelReward(city);
   }
 }
+/* §7.2 army valve: fieldable units = Σ (level+1) over owned cities */
+function armyCap(pid){ return G.cities.filter(c=>c.owner===pid).reduce((s,c)=>s+c.level+1,0); }
+function canFieldMore(pid){ return G.units.filter(u=>u.owner===pid).length < armyCap(pid); }
+function isCoastal(c){
+  for(const[dx,dy]of NB8) if(inb(c.x+dx,c.y+dy) && tileAt(c.x+dx,c.y+dy).t===T.WATER) return true;
+  return false;
+}
+function cityIncome(c){
+  const p=G.players[c.owner];
+  let inc=c.level;                          // §7.2: each level grants +1 Influence/turn
+  inc+=(c.bonusIncome||0);                  // §7.3 "+N Influence/turn" reward picks
+  if(c.workshop) inc+=1;                    // legacy flag (pre-ladder saves)
+  if(c.lodge) inc+=1;                       // Groveward (§10.1)
+  if(p && p.techs.has("deepharvest") && isCoastal(c)) inc+=1;
+  if(p && p.techs.has("hearthward") && c.level>=3) inc+=1;
+  return inc;
+}
 function recomputeIncome(){
   for(const p of G.players){
-    let inc=0;
-    for(const c of G.cities) if(c.owner===p.id){
-      inc += c.level;                       // each city yields stars = its level
-      if(c.workshop) inc+=1;
-      if(p.techs.has("farming")) inc+=1;
-    }
+    let inc=2;                              // §6.1 baseline +2 Influence/turn
+    for(const c of G.cities) if(c.owner===p.id) inc+=cityIncome(c);
     p.income=inc;
   }
 }
@@ -818,9 +1263,9 @@ function canResearch(pid,id){
 }
 function research(pid,id){
   const p=G.players[pid], cost=techCost(pid,id);
-  if(!canResearch(pid,id) || p.stars<cost) return false;
-  p.stars-=cost; p.techs.add(id);
-  if(pid===0){ toast(`Researched ${TECHS[id].name}`); renderHUD(); recomputeIncome(); buildTechModal(); }
+  if(!canResearch(pid,id) || p.influence<cost) return false;
+  p.influence-=cost; p.techs.add(id);
+  if(p.human){ toast(`Researched ${TECHS[id].name}`); renderHUD(); recomputeIncome(); if(pid===viewIndex()) buildTechModal(); }
   return true;
 }
 
@@ -828,17 +1273,19 @@ function research(pid,id){
 function aiTurn(pid){
   const p=G.players[pid];
   // 1) research: buy cheapest affordable unlockable tech, prefer combat/economy
-  const wish=["archery","riding","organization","hunting","mining","smithery","farming","chivalry","climbing","shields","forestry","mathematics","fishing"];
+  const wish=["old_roads","harvesting","lantern_roads","forest_paths","hunting","mountain_paths","delving","fishing","stonereading","wildcalling","groveward","hearthward","raftcraft","bonfire_moot","forgecraft","peakward","deepharvest","thornbind","currents","tidecall"];
   for(const id of wish){
-    if(canResearch(pid,id) && p.stars>=techCost(pid,id)+2){ research(pid,id); break; }
+    if(canResearch(pid,id) && p.influence>=techCost(pid,id)+2){ research(pid,id); break; }
   }
-  // 2) train units at owned cities if affordable
+  // 2) train units at owned cities if affordable (Forge discounts locally; §7.2 cap applies)
   for(const c of G.cities.filter(c=>c.owner===pid)){
+    if(!canFieldMore(pid)) break;
     if(unitAt(c.x,c.y)) continue;
-    const options=affordableUnits(pid,p.stars);
+    const options=affordableUnits(pid,p.influence);
     if(options.length){
       const type=options[options.length-1];       // best affordable
-      p.stars-=UNITS[type].cost; spawnUnit(type,c.x,c.y,pid);
+      const cost=Math.max(1, UNITS[type].cost-(c.forge?1:0));
+      if(p.influence>=cost){ p.influence-=cost; spawnUnit(type,c.x,c.y,pid); }
     }
   }
   // 3) move & fight each unit
@@ -847,20 +1294,21 @@ function aiTurn(pid){
   }
   recomputeVision(pid); recomputeIncome();
 }
-function affordableUnits(pid,stars){
+function affordableUnits(pid,influence){
   const p=G.players[pid];
   return Object.keys(UNITS).filter(k=>{
-    const d=UNITS[k]; if(k==="giant")return false;
+    const d=UNITS[k];
     if(d.tech && !p.techs.has(d.tech)) return false;
-    return d.cost<=stars;
+    return d.cost<=influence;
   }).sort((a,b)=>UNITS[a].cost-UNITS[b].cost);
 }
 function aiMoveUnit(u){
+  // §7.1: Take City is the whole turn's action — check before attacking
+  if(canCapture(u)){ silentCapture(u); return; }
   // attack if a target is in range now
   let tgts=targetsFor(u).sort((a,b)=>a.hp-b.hp);
   if(tgts.length && !u.attacked){ aiSimAttack(u,tgts[0]); if(!G.units.includes(u))return; }
-  // capture if standing on a capturable city
-  if(canCapture(u)){ silentCapture(u); return; }
+  if(cityUnder(u)){ u.acted=true; u.movesLeft=0; return; }   // §7.1: hold the tile, don't wander off
   // move toward nearest enemy city / village / unit
   const goal=aiGoal(u);
   if(goal && u.movesLeft>0 && !u.acted){
@@ -868,10 +1316,10 @@ function aiMoveUnit(u){
     if(opts.length){
       opts.sort((A,B)=> cheb(A[0],A[1],goal.x,goal.y)-cheb(B[0],B[1],goal.x,goal.y));
       const [nx,ny]=opts[0];
-      if(cheb(nx,ny,u.x,u.y)>0){ u.x=nx; u.y=ny; u.movesLeft=0; }
+      if(cheb(nx,ny,u.x,u.y)>0){ u.x=nx; u.y=ny; u.movesLeft=0; updateRaftState(u); collectTile(u); }
     }
-    // after moving, try capture / attack again (dash-ish for all in AI for simplicity)
-    if(canCapture(u)){ silentCapture(u); return; }
+    // after moving: start converting if we landed on a city, else try attack again
+    beginSiege(u);
     tgts=targetsFor(u);
     if(tgts.length && !u.attacked){ aiSimAttack(u,tgts.sort((a,b)=>a.hp-b.hp)[0]); }
   }
@@ -881,36 +1329,45 @@ function aiGoal(u){
   const enemies=G.cities.filter(c=>c.owner!==u.owner);
   let best=null,bd=1e9;
   for(const c of enemies){ const d=cheb(u.x,u.y,c.x,c.y); if(d<bd){bd=d;best=c;} }
-  for(const e of G.units.filter(e=>e.owner!==u.owner)){ const d=cheb(u.x,u.y,e.x,e.y); if(d<bd){bd=d;best=e;} }
+  for(const e of G.units.filter(e=>e.owner!==u.owner && !hiddenFrom(e,u.owner))){ const d=cheb(u.x,u.y,e.x,e.y); if(d<bd){bd=d;best=e;} }
   return best;
 }
 function aiSimAttack(att,def){
   const ranged=cheb(att.x,att.y,def.x,def.y)>1;
   const {atkDmg,defDmg}=combat(att,def,ranged);
   def.hp-=atkDmg;
-  if(def.hp<=0){ removeUnit(def); }
-  else if(!ranged){ att.hp-=defDmg; if(att.hp<=0) removeUnit(att); }
+  if(def.hp<=0){ removeUnit(def); makeStoried(att); }
+  else retaliate(att,def,defDmg);   // §9.2
   att.attacked=true; att.movesLeft=0;
   checkElimination();
 }
 function silentCapture(u){
   const c=cityAt(u.x,u.y); if(!c||c.owner===u.owner)return;
-  c.owner=u.owner; if(c.level===0)c.level=1; computeTerritory(c);
-  u.acted=true; u.movesLeft=0; recomputeIncome(); checkElimination();
+  if(!canCapture(u)) return;              // §7.1: AI obeys the same siege clock
+  c.owner=u.owner; c.convert=null; if(c.level===0)c.level=1; computeTerritory(c);
+  u.acted=true; u.movesLeft=0; recomputeIncome(); checkElimination(u.owner);
 }
 function aiLevelReward(city){
-  // simple: alternate workshop / wall / border, sometimes giant
-  const r=ri(4);
-  if(r===0) city.workshop=true;
-  else if(r===1) city.wall=true;
-  else if(r===2){ city.borderGrown=true; computeTerritory(city); }
-  else if(city.level>=4 && !unitAt(city.x,city.y)) spawnUnit("giant",city.x,city.y,city.owner);
-  else city.workshop=true;
+  // §7.3 CPU picks: economy-favouring early, army/score later (simple weighting)
+  const row=Math.min(city.level-1,5);
+  if(row<=1){
+    if(G.turn>8 && canFieldMore(city.owner) && !unitAt(city.x,city.y)) applyReward(city,"freeunit");
+    else applyReward(city,"inc1");
+  } else if(row===2){
+    const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
+    applyReward(city, pool.length? "freelore" : "inc1");
+  } else if(row===3){
+    if(city.capital) applyReward(city, ri(2)? "wellspring" : "wall");
+    else applyReward(city, city.wall? "pop2" : (ri(2)? "wall" : "pop2"));
+  } else if(row===4){
+    applyReward(city, ri(2)? "border" : "inc2");
+  } else applyReward(city, ri(2)? "score250" : "inc2");
 }
 
 /* -------------------------------- TURN ----------------------------------- */
 function endTurn(){
   if(G.over) return;
+  kindleMode=false;
   clearSel();
   advancePlayer();
 }
@@ -928,45 +1385,82 @@ function startPlayerTurn(pid){
   const p=G.players[pid];
   // income + city population growth
   recomputeIncome();
-  p.stars+=p.income;
-  for(const c of G.cities) if(c.owner===pid) addPop(c,1); // natural +1 pop/turn per city
+  p.influence+=p.income;
+  if(!p.human && p.alive) p.influence+=DIFFICULTY[G.diff||"medium"].bonus;   // §13 CPU income cheat
+  for(const c of G.cities) if(c.owner===pid){
+    let grow=1;                                            // §6.2 natural +1 Listener/turn
+    if(c.wellspring) grow+=1;                              // §7.3 L3(a) Wellspring
+    if(p.techs.has("lantern_roads") &&
+       G.cities.some(o=>o!==c && o.owner===pid && cheb(c.x,c.y,o.x,o.y)<=4)) grow+=1;   // connected cities (flame node)
+    addListeners(c,grow);
+  }
+  // Bonfire Moot (§11): units resting on own city tiles heal 3/turn
+  if(G.cities.some(c=>c.owner===pid && c.monument)){
+    for(const u of G.units) if(u.owner===pid){
+      const c=cityAt(u.x,u.y);
+      if(c && c.owner===pid) u.hp=Math.min(u.maxhp, u.hp+3);
+    }
+  }
   // reset units
   for(const u of G.units) if(u.owner===pid){ u.movesLeft=UNITS[u.type].move; u.acted=false; u.attacked=false; }
+  // §7.1 siege clock: a held converting city gains one hold at its besieger's turn start
+  for(const c of G.cities){
+    if(!c.convert || c.convert.by!==pid) continue;
+    const occ=unitAt(c.x,c.y);
+    if(occ && occ.owner===pid) c.convert.holds++;
+    else c.convert=null;                   // besieger left or died — siege resets
+  }
   recomputeVision(pid);
 
   // score-mode end check
-  if(G.mode==="score" && G.turn>20 && pid===0){ endByScore(); return; }
+  if(G.mode==="score" && G.turn>SCORE_TURN_LIMIT && pid===0){ endByScore(); return; }
 
   renderHUD();
   if(p.human){
-    renderActions(); save();
-    // auto-focus a city if you have no units
+    G.viewer=pid;                          // switch the screen to this human's fog…
+    if(multiHuman()) showCurtain(pid);     // …behind an opaque curtain (same paint, no leak)
+    renderHUD(); renderActions(); save();
   } else {
     // run AI then advance automatically
     setTimeout(()=>{ aiTurn(pid); if(!G.over) advancePlayer(); }, 220);
   }
 }
 
-function checkElimination(){
+/* §12 elimination: zero cities = destroyed, regardless of surviving army; all units vanish.
+   byPid (when a capture triggered the check) earns the +500 destruction bounty. */
+function checkElimination(byPid){
   for(const p of G.players){
     if(!p.alive) continue;
-    const hasCity=G.cities.some(c=>c.owner===p.id);
-    const hasUnit=G.units.some(u=>u.owner===p.id);
-    if(!hasCity && !hasUnit){ p.alive=false; if(p.id!==0) toast(`${p.name} eliminated`); }
+    if(G.cities.some(c=>c.owner===p.id)) continue;
+    p.alive=false;
+    G.units=G.units.filter(u=>u.owner!==p.id);
+    if(byPid!==undefined && byPid>=0 && byPid!==p.id)
+      G.players[byPid].destroyed=(G.players[byPid].destroyed||0)+1;
+    showElimBeat(p);
   }
-  // domination victory
-  if(G.mode==="dom"){
-    const alive=G.players.filter(p=>p.alive);
-    const humanAlive=G.players[0].alive;
-    if(!humanAlive){ gameOver(false); return; }
-    if(alive.length===1 && alive[0].id===0){ gameOver(true); return; }
-  } else {
-    if(!G.players[0].alive){ gameOver(false); }
+  if(!G.players.some(p=>p.human && p.alive)){ gameOver(false); return; }   // every human tale has ended
+  const alive=G.players.filter(p=>p.alive);
+  if(alive.length===1){                                  // sole survivor is necessarily a human here
+    if(G.mode==="dom") gameOver(true,false,alive[0].id);
+    else if(!G.soleTeller){                              // Score/Endless: note it, play on
+      G.soleTeller=true;
+      toast("Every rival tale has faded — the telling continues");
+    }
   }
+}
+// §12 full-screen elimination beat
+function showElimBeat(p){
+  openModal("","",`<div class="center" style="padding:8px 0">
+    <div style="font-size:42px">🕯️</div>
+    <h1 style="font-size:21px;margin:10px 0 4px;line-height:1.35">“The tale of the ${p.name}<br>is no longer told.”</h1>
+    <button class="btn primary" style="width:100%;margin-top:14px" id="beatOk">The telling goes on ▶</button>
+  </div>`);
+  el("beatOk").onclick=()=>el("scrim").classList.remove("on");
 }
 function computeScore(p){
   let s=0;
-  for(const c of G.cities) if(c.owner===p.id) s+=c.level*100 + c.pop*5 + (c.wall?50:0);
+  for(const c of G.cities) if(c.owner===p.id) s+=c.level*100 + c.listeners*5 + (c.wall?50:0) + (c.monument?250:0) + (c.park||0);
+  s += (p.destroyed||0)*500;                 // §12 destruction bounty
   s += p.techs.size*80;
   s += G.units.filter(u=>u.owner===p.id).length*20;
   return s;
@@ -974,21 +1468,21 @@ function computeScore(p){
 function endByScore(){
   for(const p of G.players) p.score=computeScore(p);
   const win=G.players.slice().filter(p=>p.alive).sort((a,b)=>b.score-a.score)[0];
-  gameOver(win.id===0, true);
+  gameOver(win.human, true, win.id);
 }
-function gameOver(won,byScore){
-  G.over=true; G.winner=won?0:null;
+function gameOver(won,byScore,winnerId){
+  G.over=true; G.winner=(winnerId!==undefined)? winnerId : (won?0:null);
   clearSave();
   showEndScreen(won,byScore);
 }
 
 /* --------------------------------- SAVE ---------------------------------- */
-const SAVE_KEY="tinytopia_save_v1";
+const SAVE_KEY="toltales_save_v4";   // bumped: v3 tile format lacks library/storyteller fields
 function save(){
   try{
     const data={
-      N:G.N,mode:G.mode,turn:G.turn,current:G.current,nextUid:G.nextUid,
-      tiles:G.tiles.map(t=>[t.t,t.res]),
+      N:G.N,mode:G.mode,world:G.world,diff:G.diff,viewer:G.viewer,turn:G.turn,current:G.current,nextUid:G.nextUid,
+      tiles:G.tiles.map(t=>[t.t,t.res,t.lib?1:0,t.story||0]),
       units:G.units,
       cities:G.cities,
       players:G.players.map(p=>({...p,techs:[...p.techs],revealed:[...p.revealed],visible:[...p.visible]})),
@@ -1002,15 +1496,17 @@ function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 function loadSave(){
   try{
     const d=JSON.parse(localStorage.getItem(SAVE_KEY)); if(!d) return false;
-    const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1]}));
-    G={ N:d.N,mode:d.mode,turn:d.turn,current:d.current,over:false,winner:null,
+    const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1],lib:!!a[2],story:a[3]||null}));
+    G={ N:d.N,mode:d.mode,world:d.world||"heartlands",diff:d.diff||"medium",turn:d.turn,current:d.current,over:false,winner:null,
         tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,
         players:d.players.map(p=>({...p,techs:new Set(p.techs),revealed:new Set(p.revealed),visible:new Set(p.visible)})),
         sel:null,moveTiles:null,atkTiles:null, cam:d.cam, mode2:d.mode };
     G.mode=d.mode;
+    G.viewer=(d.viewer!==undefined)? d.viewer : G.players.findIndex(p=>p.human);
     recomputeIncome();
     startScreen.classList.remove("on");
     renderHUD(); renderActions();
+    if(multiHuman() && G.players[G.current].human) showCurtain(G.current);   // resume behind the curtain
     return true;
   }catch(e){ return false; }
 }
@@ -1025,20 +1521,31 @@ function toast(msg){
   while(toastWrap.children.length>4) toastWrap.firstChild.remove();
 }
 function renderHUD(){
+  const p=viewingPlayer();
   el("hudTurn").textContent=G.turn;
-  el("hudStars").textContent=G.players[0].stars;
-  el("hudInc").textContent="+"+G.players[0].income+"/t";
+  el("hudFolkName").textContent=p.name;
+  el("hudFolkName").style.color=p.color;
+  el("hudInfluence").textContent=p.influence;
+  el("hudInc").textContent="+"+p.income+"/t";
 }
 function renderActions(){
   const bar=el("actions");
   bar.innerHTML="";
   const u=G.sel;
   if(isHumanTurn() && u){
-    if(canCapture(u) && !u.acted){ bar.appendChild(mkBtn("🚩 Capture","primary",()=>doCapture(u))); }
+    if(canCapture(u) && !u.acted){ bar.appendChild(mkBtn("🚩 Take City","primary",()=>doCapture(u))); }
+    else if(cityUnder(u)){
+      const c=cityUnder(u), left=siegeNeed(c)-((c.convert&&c.convert.by===u.owner)?c.convert.holds:0);
+      const b=mkBtn(`Converting… ${left} turn${left>1?"s":""}`,"",null); b.disabled=true; bar.appendChild(b);
+    }
     bar.appendChild(mkBtn("Deselect","",()=>clearSel()));
   }
+  if(isHumanTurn() && viewingPlayer().kindle>0){
+    bar.appendChild(mkBtn(kindleMode?`🕯 Tap a tile…`:`🕯 Kindle (${viewingPlayer().kindle})`, kindleMode?"primary":"",
+      ()=>{ kindleMode=!kindleMode; renderActions(); }));
+  }
   // end turn always
-  const eb=mkBtn(G.current===0?"End Turn ▶":"…AI thinking","primary",()=>{ if(isHumanTurn())endTurn(); });
+  const eb=mkBtn(isHumanTurn()?"End Turn ▶":"…AI thinking","primary",()=>{ if(isHumanTurn())endTurn(); });
   eb.id="btnEnd"; if(!isHumanTurn()) eb.disabled=true;
   bar.appendChild(eb);
   renderHUD();
@@ -1049,10 +1556,12 @@ function renderUnitCard(u){
   const d=UNITS[u.type];
   ctxcard.style.display="block";
   ctxcard.innerHTML=`
-    <h3>${d.icon} ${d.name} ${u.vet?'<span class="pill">veteran</span>':''}</h3>
+    <h3>${d.icon} ${d.name} ${u.storied?'<span class="pill" style="color:#ffd75e">✦ Storied</span>':''}${u.raft?'<span class="pill">🛶 Raft</span>':''}</h3>
+    <div class="row" style="font-style:italic">“${d.tagline}”</div>
     <div class="row"><span>Owner</span><b style="color:${G.players[u.owner].color}">${G.players[u.owner].name}</b></div>
-    <div class="row"><span>Attack / Defense</span><b>${d.atk} / ${d.def}</b></div>
-    <div class="row"><span>Move / Range</span><b>${d.move} / ${d.range}</b></div>
+    <div class="row"><span>Attack / Defense</span><b>${unitAtk(u)} / ${unitDef(u)}</b></div>
+    <div class="row"><span>Move / Range</span><b>${unitMovePts(u)} / ${unitRange(u)}</b></div>
+    <div class="row"><span>${d.sig}</span></div>
     <div class="row"><span>Status</span><b>${u.acted?'done':(u.movesLeft>0?'ready':'moved')}</b></div>
     <div class="hpbar"><i style="width:${Math.max(0,100*u.hp/u.maxhp)}%;background:${u.hp/u.maxhp>.5?'#57d38c':(u.hp/u.maxhp>.25?'#ffd75e':'#ff6b6b')}"></i></div>`;
 }
@@ -1063,9 +1572,9 @@ function showTileCard(x,y){
   if(t.res!==R.NONE){
     const rd=RESOURCE[t.res];
     html+=`<div class="row"><span>Resource</span><b>${rd.icon} ${rd.name}</b></div>`;
-    if(canHarvest(x,y,0)){
-      html+=`<button class="btn primary" style="width:100%;margin-top:8px" id="hv">Harvest +${rd.pop} pop</button>`;
-    } else if(!G.players[0].techs.has(rd.tech)){
+    if(canHarvest(x,y,viewIndex())){
+      html+=`<button class="btn primary" style="width:100%;margin-top:8px" id="hv">Harvest +${rd.listeners} Listeners</button>`;
+    } else if(!viewingPlayer().techs.has(rd.tech)){
       html+=`<div class="row"><span>Needs tech</span><b>${TECHS[rd.tech].name}</b></div>`;
     } else {
       html+=`<div class="row" style="color:#8ea0b5">Not in your territory</div>`;
@@ -1074,7 +1583,7 @@ function showTileCard(x,y){
     html+=`<div class="row"><span>Defense bonus</span><b>×${ter.defBonus}</b></div>`;
   }
   ctxcard.innerHTML=html;
-  const hv=el("hv"); if(hv) hv.onclick=()=>doHarvest(x,y,0);
+  const hv=el("hv"); if(hv) hv.onclick=()=>doHarvest(x,y,viewIndex());
 }
 
 /* --- generic modal --- */
@@ -1085,95 +1594,214 @@ function openModal(title,sub,bodyHTML){
 el("mClose").onclick=()=>el("scrim").classList.remove("on");
 el("scrim").addEventListener("click",e=>{ if(e.target===el("scrim")) el("scrim").classList.remove("on"); });
 
-/* --- tech modal --- */
+/* --- lore tree modal: §10.3 hub-and-fans, positions computed from constants --- */
 el("btnTech").onclick=buildTechModal;
-function buildTechModal(){
-  const p=G.players[0];
-  const tiers={1:[],2:[],3:[]};
-  for(const id in TECHS) tiers[TECHS[id].tier].push(id);
-  let html="";
-  for(const tier of [1,2,3]){
-    html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:10px 0 6px">TIER ${tier}</div><div class="grid">`;
-    for(const id of tiers[tier]){
-      const owned=p.techs.has(id), avail=canResearch(0,id), cost=techCost(0,id);
-      const cls= owned?"owned":(avail? (p.stars>=cost?"":"locked") :"locked");
-      html+=`<div class="card ${cls}" data-tech="${id}">
-        <div class="t"><span>${TECHS[id].name}</span>${owned?'<span class="pill" style="color:#57d38c">✓</span>':`<span class="cost">★${cost}</span>`}</div>
-        <div class="d">${TECHS[id].blurb}${TECHS[id].req&&!owned?`<br><span style="color:#8ea0b5">needs ${TECHS[TECHS[id].req].name}</span>`:''}</div>
-      </div>`;
-    }
-    html+="</div>";
+let selTech=null;
+function techNodePositions(){
+  const CX=300,CY=300,R1=100,R2=185,R3=262,SPREAD=25*Math.PI/180;
+  const P={};
+  for(const br in BRANCHES){
+    const a=BRANCHES[br].angle*Math.PI/180;
+    const ids=Object.keys(TECHS).filter(id=>TECHS[id].branch===br);
+    const t1=ids.find(id=>TECHS[id].tier===1);
+    P[t1]=[CX+Math.cos(a)*R1, CY+Math.sin(a)*R1];
+    ids.filter(id=>TECHS[id].tier===2).forEach((id,i)=>{
+      const aa=a+(i===0?-1:1)*SPREAD;                     // first-defined T2 = Harvest side
+      P[id]=[CX+Math.cos(aa)*R2, CY+Math.sin(aa)*R2];
+      const t3=ids.find(x=>TECHS[x].req===id);
+      if(t3) P[t3]=[CX+Math.cos(aa)*R3, CY+Math.sin(aa)*R3];
+    });
   }
-  openModal("Research",`★ ${p.stars} available · +${p.income}/turn`,html);
-  el("mBody").querySelectorAll(".card").forEach(card=>{
-    card.onclick=()=>{ const id=card.dataset.tech; if(canResearch(0,id) && p.stars>=techCost(0,id)){ research(0,id); } };
+  return P;
+}
+function buildTechModal(){
+  const p=viewingPlayer();
+  const P=techNodePositions();
+  let edges="", nodes="";
+  for(const id in TECHS){
+    const [x,y]=P[id];
+    const from=TECHS[id].req? P[TECHS[id].req] : [300,300];
+    edges+=`<line x1="${from[0].toFixed(1)}" y1="${from[1].toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#c9a456" stroke-opacity=".4" stroke-width="2"/>`;
+  }
+  for(const id in TECHS){
+    const t=TECHS[id], [x,y]=P[id];
+    const owned=p.techs.has(id), avail=canResearch(viewIndex(),id), cost=techCost(viewIndex(),id);
+    const fill= owned? "#ffd75e" : avail? "#2f3a63" : "#1b2138";
+    const stroke= owned? "#c9a456" : avail? "#ffd75e" : "#3a4468";
+    nodes+=`<g class="tnode" data-tech="${id}" opacity="${owned||avail?1:.55}" style="cursor:pointer">`;
+    if(avail) nodes+=`<circle cx="${x}" cy="${y}" r="30" fill="none" stroke="#ffd75e" stroke-opacity=".28" stroke-width="7"/>`;
+    if(t.flame) nodes+=`<circle cx="${x}" cy="${y}" r="32" fill="none" stroke="#ff9138" stroke-width="2.5" stroke-dasharray="4 3"/>`;
+    if(selTech===id) nodes+=`<circle cx="${x}" cy="${y}" r="36" fill="none" stroke="#eef2f7" stroke-width="1.5"/>`;
+    nodes+=`<circle cx="${x}" cy="${y}" r="24" fill="${fill}" stroke="${stroke}" stroke-width="2"/>
+      <text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="19">${t.icon}</text>
+      <text x="${x}" y="${y+40}" text-anchor="middle" font-size="12" font-weight="bold" fill="${owned?'#57d38c':(avail?'#ffd75e':'#5a648a')}">${owned?"✓":(avail?"📜"+cost:"🔒")}</text></g>`;
+  }
+  const hub=`<circle cx="300" cy="300" r="36" fill="#1c2542" stroke="#c9a456" stroke-width="2"/>
+    <text x="300" y="293" text-anchor="middle" font-size="17">✦</text>
+    <text x="300" y="309" text-anchor="middle" font-size="8.5" fill="#c9a456" letter-spacing="1">ANCESTRAL</text>
+    <text x="300" y="319" text-anchor="middle" font-size="8.5" fill="#c9a456" letter-spacing="1">LORE</text>`;
+  const html=`<svg viewBox="0 0 600 600" style="width:100%;display:block;max-height:56vh">${edges}${hub}${nodes}</svg>
+    <div id="techDetail" style="min-height:48px;color:#8ea0b5;font-size:13px;line-height:1.4;margin-top:6px">Tap a lore node to read it.</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-top:8px">
+      <div style="font-weight:800;white-space:nowrap">📜 ${p.influence}</div>
+      <button class="btn primary" id="techUnlock" style="flex:1" disabled>Unlock</button>
+    </div>`;
+  openModal("Lore","Four old ways fan out from the Ancestral Lore. Flame-ringed nodes are the Lantern Court's own.",html);
+  el("mBody").querySelectorAll(".tnode").forEach(n=>{
+    n.onclick=()=>{ selTech=n.dataset.tech; buildTechModal(); };
   });
+  if(selTech && TECHS[selTech]){
+    const t=TECHS[selTech], owned=p.techs.has(selTech), avail=canResearch(viewIndex(),selTech), cost=techCost(viewIndex(),selTech);
+    el("techDetail").innerHTML=`<b style="color:#eef2f7">${t.icon} ${t.name}</b>`
+      +(t.flame?` <span style="color:#ff9138">— Lantern Court flame lore</span>`:"")
+      +`<br>${t.blurb}`
+      +(owned?` <span style="color:#57d38c">(known)</span>`
+        :(avail?"":`<br><span>needs ${TECHS[t.req].name}</span>`));
+    const b=el("techUnlock");
+    b.disabled=!(avail && p.influence>=cost);
+    b.textContent= owned? "Known" : `Unlock — 📜${cost}`;
+    if(avail && p.influence>=cost) b.onclick=()=>{ research(viewIndex(),selTech); };
+  }
 }
 
 /* --- city modal (train units) --- */
+function trainCost(city,d){ return Math.max(1, d.cost-(city.forge?1:0)); }   // Forgecraft (§10.1)
 function openCity(city){
-  const p=G.players[0];
+  const p=viewingPlayer();
   const occupied=unitAt(city.x,city.y);
-  let html=`<div class="row" style="display:flex;gap:14px;color:#8ea0b5;font-size:12px;margin-bottom:8px">
+  const built=Object.keys(BUILDINGS).filter(k=>city[k]);
+  let html=`<div class="row" style="display:flex;gap:14px;color:#8ea0b5;font-size:12px;margin-bottom:8px;flex-wrap:wrap">
      <span>Level <b style="color:#eef2f7">${city.level}</b></span>
-     <span>Pop <b style="color:#eef2f7">${city.pop}/${city.level+1}</b></span>
-     <span>Income <b style="color:#ffd75e">★${city.level+(city.workshop?1:0)+(p.techs.has("farming")?1:0)}</b></span>
+     <span>Listeners <b style="color:#eef2f7">${city.listeners}/${city.level+1}</b></span>
+     <span>Income <b style="color:#ffd75e">📜${cityIncome(city)}</b></span>
+     <span>Army <b style="color:#eef2f7">${G.units.filter(u=>u.owner===viewIndex()).length}/${armyCap(viewIndex())}</b></span>
      ${city.wall?'<span style="color:#ffd75e">Walled</span>':''}${city.capital?'<span style="color:#ffd75e">★Capital</span>':''}
+     ${built.map(k=>`<span>${BUILDINGS[k].icon} ${BUILDINGS[k].name}</span>`).join("")}
    </div>`;
   if(occupied){
     html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">Tile occupied — move the unit off before training a new one.</div>`;
   }
+  if(!canFieldMore(viewIndex())){
+    html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">Army at capacity (§7.2: city level + 1 per city). Level cities up to field more.</div>`;
+  }
   html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:6px 0">TRAIN</div><div class="grid">`;
   for(const key of Object.keys(UNITS)){
-    const d=UNITS[key]; if(key==="giant") continue;
+    const d=UNITS[key], cost=trainCost(city,d);
     const locked = d.tech && !p.techs.has(d.tech);
-    const afford = p.stars>=d.cost && !occupied;
+    const afford = p.influence>=cost && !occupied && canFieldMore(viewIndex());
     const cls = locked?"locked":(afford?"":"locked");
     html+=`<div class="card ${cls}" data-u="${key}">
-      <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">★${d.cost}</span></div>
+      <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">📜${cost}</span></div>
       <div class="d">ATK ${d.atk} · DEF ${d.def} · MOV ${d.move} · RNG ${d.range}${locked?`<br><span style="color:#8ea0b5">needs ${TECHS[d.tech].name}</span>`:''}</div>
     </div>`;
   }
   html+="</div>";
+  // §10.1 tile-less lore buildings, one of each per city
+  const options=Object.keys(BUILDINGS).filter(k=>p.techs.has(BUILDINGS[k].tech));
+  if(options.length){
+    html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:10px 0 6px">BUILD</div><div class="grid">`;
+    for(const key of options){
+      const b=BUILDINGS[key], done=!!city[key];
+      const cls=done?"owned":(p.influence>=BUILD_COST?"":"locked");
+      html+=`<div class="card ${cls}" data-b="${key}">
+        <div class="t"><span>${b.icon} ${b.name}</span>${done?'<span class="pill" style="color:#57d38c">✓</span>':`<span class="cost">📜${BUILD_COST}</span>`}</div>
+        <div class="d">${b.desc}</div>
+      </div>`;
+    }
+    html+="</div>";
+  }
   openModal((city.capital?"★ ":"")+"City", "", html);
-  el("mBody").querySelectorAll(".card").forEach(card=>{
+  el("mBody").querySelectorAll(".card[data-u]").forEach(card=>{
     card.onclick=()=>{
-      const key=card.dataset.u, d=UNITS[key];
+      const key=card.dataset.u, d=UNITS[key], cost=trainCost(city,d);
       if(d.tech && !p.techs.has(d.tech)) return;
       if(unitAt(city.x,city.y)) return;
-      if(p.stars<d.cost) return;
-      p.stars-=d.cost; spawnUnit(key,city.x,city.y,0);
-      recomputeVision(0); renderHUD(); el("scrim").classList.remove("on");
+      if(p.influence<cost || !canFieldMore(viewIndex())) return;
+      p.influence-=cost; spawnUnit(key,city.x,city.y,viewIndex());
+      recomputeVision(viewIndex()); renderHUD(); el("scrim").classList.remove("on");
       toast(`Trained ${d.name}`);
+    };
+  });
+  el("mBody").querySelectorAll(".card[data-b]").forEach(card=>{
+    card.onclick=()=>{
+      const key=card.dataset.b;
+      if(city[key] || p.influence<BUILD_COST) return;
+      p.influence-=BUILD_COST; city[key]=true;
+      recomputeIncome(); recomputeVision(viewIndex()); renderHUD(); save();
+      toast(`${BUILDINGS[key].name} built`);
+      openCity(city);
     };
   });
 }
 
-/* --- level-up reward chooser --- */
+/* --- §7.3 level-up reward ladder. Row = level reached − 1; row 5 repeats forever.
+       L3(c) City Wall is the approved resolution of the walls-source gap; the L5+ (a)
+       Legend-unit slot is deferred to slice 2 and stands in as +2 Influence/turn. --- */
 function offerLevelReward(city){
-  const lvl=city.level;
+  const row=Math.min(city.level-1,5);
   let opts;
-  if(lvl===2) opts=[["Workshop","+1 star / turn from this city","workshop"],["Explorer","Reveal a wide area around the city","explorer"]];
-  else if(lvl===3) opts=[["City Wall","Strong defense bonus (×4) for defenders here","wall"],["Resources","+5 stars right now","stars"]];
-  else if(lvl===4) opts=[["Pop Growth","+3 population immediately","pop"],["Border Growth","Expand this city's territory","border"]];
-  else opts=[["Park","+250 score (Perfection value)","park"],["Giant","Spawn a mighty Giant unit","giant"]];
-  const html=`<div class="grid">${opts.map(o=>`<div class="card" data-r="${o[2]}"><div class="t">${o[0]}</div><div class="d">${o[1]}</div></div>`).join("")}</div>`;
-  openModal(`City reached level ${lvl}!`,"Choose a reward",html);
+  if(row<=1){
+    const ok=canFieldMore(city.owner) && !unitAt(city.x,city.y);
+    opts=[["+1 Influence/turn","Steady income from this city.","inc1"],
+          ["Free Wanderer","The cheapest character, mustered here.","freeunit",!ok],
+          ["Wandering Scout","Reveal ~25 tiles along a random path.","scout"]];
+  } else if(row===2){
+    const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
+    opts=[["Whispered Lore","Learn a random reachable lore node, free.","freelore",!pool.length],
+          ["Kindle Charge","+1 use of the Lantern Court's special move.","kindle"],
+          ["+1 Influence/turn","Steady income from this city.","inc1"]];
+  } else if(row===3){
+    opts=[ city.capital? ["Wellspring","+1 Listener/turn. (Capital only.)","wellspring"]
+                       : ["Deep Listeners","+2 Listeners right now.","pop2"],
+          ["Shrine","Defense bonus for units on this city tile.","shrine"],
+          ["City Wall","×4 defense here; sieges take one extra turn.","wall",!!city.wall]];
+  } else if(row===4){
+    opts=[["Border Growth","Borders push out one tile (other folklores' land is skipped).","border"],
+          ["+2 Influence/turn","Steady income from this city.","inc2"]];
+  } else {
+    opts=[["+250 Score","This city's tale grows famous.","score250"],
+          ["+2 Influence/turn","Steady income from this city.","inc2"]];
+  }
+  const html=`<div class="grid">${opts.map(o=>`<div class="card ${o[3]?"locked":""}" data-r="${o[2]}"><div class="t">${o[0]}</div><div class="d">${o[1]}</div></div>`).join("")}</div>`;
+  openModal(`${city.capital?"★ ":""}City reached level ${city.level}!`,"Choose a reward",html);
   el("mBody").querySelectorAll(".card").forEach(card=>{
+    if(card.classList.contains("locked")) return;
     card.onclick=()=>{ applyReward(city,card.dataset.r); el("scrim").classList.remove("on"); };
   });
 }
 function applyReward(city,r){
   const p=G.players[city.owner];
-  if(r==="workshop"){ city.workshop=true; }
-  else if(r==="explorer"){ city.explorer=true; }
-  else if(r==="wall"){ city.wall=true; }
-  else if(r==="stars"){ p.stars+=5; }
-  else if(r==="pop"){ addPop(city,3); }
+  if(r==="inc1") city.bonusIncome=(city.bonusIncome||0)+1;
+  else if(r==="inc2") city.bonusIncome=(city.bonusIncome||0)+2;
+  else if(r==="freeunit"){
+    if(canFieldMore(city.owner) && !unitAt(city.x,city.y)) spawnUnit("wanderer",city.x,city.y,city.owner);
+    else p.influence+=2;
+  }
+  else if(r==="scout") scoutPath(city);
+  else if(r==="freelore"){
+    const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
+    if(pool.length){ const id=pool[ri(pool.length)]; p.techs.add(id);
+      if(city.owner===0) toast(`Whispered lore: ${TECHS[id].name}`); }
+  }
+  else if(r==="kindle") p.kindle=(p.kindle||0)+1;
+  else if(r==="wellspring") city.wellspring=true;
+  else if(r==="pop2") addListeners(city,2);
+  else if(r==="shrine") city.shrine=true;
+  else if(r==="wall") city.wall=true;
   else if(r==="border"){ city.borderGrown=true; computeTerritory(city); }
-  else if(r==="park"){ city.park=(city.park||0)+250; }
-  else if(r==="giant"){ if(!unitAt(city.x,city.y)) spawnUnit("giant",city.x,city.y,city.owner); else p.stars+=5; }
-  recomputeIncome(); recomputeVision(city.owner); renderHUD();
+  else if(r==="score250") city.park=(city.park||0)+250;
+  recomputeIncome(); recomputeVision(city.owner); renderHUD(); renderActions();
+}
+// L1(c): a phantom scout wanders ~12 steps from the city, revealing as it goes (~25 tiles)
+function scoutPath(city){
+  const p=G.players[city.owner];
+  let x=city.x, y=city.y, ang=rnd()*Math.PI*2;
+  for(let s=0;s<12;s++){
+    ang+=(rnd()-.5)*1.2;
+    x=Math.max(0,Math.min(G.N-1,Math.round(x+Math.cos(ang))));
+    y=Math.max(0,Math.min(G.N-1,Math.round(y+Math.sin(ang))));
+    for(const[dx,dy]of NB8.concat([[0,0]])) if(inb(x+dx,y+dy)) p.revealed.add(idx(x+dx,y+dy));
+  }
 }
 
 /* --- help --- */
@@ -1181,11 +1809,12 @@ el("btnHelp").onclick=()=>openModal("How to play","Explore · Expand · Research
   <ul class="help">
     <li><b>Tap a unit</b> to select it. Blue tiles = where it can move, red outline = who it can attack.</li>
     <li><b>Tap a blue tile</b> to move; <b>tap a red enemy</b> to attack. Combat uses hp, attack/defense and terrain.</li>
-    <li><b>Move onto a village or enemy city</b>, then press <span class="kbd">🚩 Capture</span> to take it.</li>
-    <li><b>Tap your own city</b> to spend <span class="star">★ stars</span> training units. Each city also grows +1 pop/turn.</li>
-    <li><b>🔬 Tech</b> spends stars on research — new units, harvesting, mountain travel and more.</li>
-    <li><b>Tap a resource tile</b> (🍎🦌⛏🐟) inside your borders and, with the right tech, <b>Harvest</b> it for population. Cities level up and grant rewards.</li>
-    <li><b>Stars/turn</b> = sum of your cities' levels (+workshops/farming). Spend them each turn.</li>
+    <li><b>Move onto a village or enemy city</b> to start converting it. Hold the tile one turn (two if walled), then press <span class="kbd">🚩 Take City</span>. Being attacked doesn't reset the siege — leaving does.</li>
+    <li><b>Tap your own city</b> to spend <span class="star">📜 Influence</span> training units. Each city also gains +1 Listener/turn.</li>
+    <li><b>📖 Lore</b> spends Influence on the four branches of the lore tree — the Lantern Crone, harvesting, mountain travel, buildings and more. Flame-ringed nodes are folklore-specific.</li>
+    <li><b>Tap a resource tile</b> (🍎🦌⛏🐟) inside your borders and, with the right tech, <b>Harvest</b> it for Listeners. Cities level up and grant rewards.</li>
+    <li><b>📚 Abandoned Libraries</b> give a one-time gift to whoever walks in. <b>🎭 Storytellers</b> (Booklands) sell a discounted character from a random folklore — once.</li>
+    <li><b>Influence/turn</b> = sum of your cities' levels, plus Lodges, Workshops and coastal/shrine lore. Spend it each turn.</li>
     <li><b>Win</b> by <b>Domination</b> (wipe out every rival) — or by top <b>score</b> at turn 20 in Perfection mode.</li>
     <li>Drag to pan, scroll or <span class="kbd">+ / −</span> to zoom.</li>
   </ul>`);
@@ -1194,7 +1823,7 @@ el("btnMenu").onclick=()=>openModal("Menu","",`
   <button class="btn" style="width:100%;margin-bottom:8px" id="mm_center">Center on capital</button>
   <button class="btn" style="width:100%;margin-bottom:8px" id="mm_save">Save now</button>
   <button class="btn" style="width:100%" id="mm_new">New game…</button>`) || setTimeout(()=>{
-    el("mm_center").onclick=()=>{ centerCameraOn(capitalOf(0)); el("scrim").classList.remove("on"); };
+    el("mm_center").onclick=()=>{ centerCameraOn(capitalOf(viewIndex())); el("scrim").classList.remove("on"); };
     el("mm_save").onclick=()=>{ save(); toast("Saved"); };
     el("mm_new").onclick=()=>{ el("scrim").classList.remove("on"); startScreen.classList.add("on"); };
   },0);
@@ -1206,7 +1835,7 @@ function showEndScreen(won,byScore){
   const html=`
     <div class="center">
       <h1 style="font-size:30px">${won?"Victory!":"Defeat"}</h1>
-      <p class="sub">${won?(byScore?"You held the highest score.":"You dominated the map."):"Your tribe has fallen."}</p>
+      <p class="sub">${won?(byScore?`The ${G.winner!=null?G.players[G.winner].name:""} held the highest score.`:`The ${G.winner!=null?G.players[G.winner].name:""} tale is now the world's true tale.`):`“The tale of the ${G.players.find(p=>p.human).name} is no longer told.”`}</p>
       ${rows.map(r=>`<div class="field"><label style="color:${r.color}">${r.name}${r.alive?"":" ✝"}</label><b class="mono">${r.score}</b></div>`).join("")}
       <button class="btn primary" style="width:100%;margin-top:12px" id="againBtn">New game ▶</button>
     </div>`;
@@ -1217,13 +1846,13 @@ function showEndScreen(won,byScore){
 
 /* ------------------------------ START SCREEN ----------------------------- */
 const startScreen=el("startScreen");
-let sel={tribe:"imperius",size:12,ai:1,mode:"dom"};
-function buildTribeGrid(){
-  const g=el("tribeGrid"); g.innerHTML="";
-  TRIBES.forEach(t=>{
-    const d=document.createElement("div"); d.className="tribe"+(t.id===sel.tribe?" on":"");
-    d.innerHTML=`<div class="dot" style="background:${t.color}"></div><div class="n">${t.name}</div><div class="s">${TECHS[t.start].name}</div>`;
-    d.onclick=()=>{ sel.tribe=t.id; buildTribeGrid(); };
+let sel={folklore:"lantern_court",size:12,ai:1,mode:"dom",world:"heartlands",diff:"medium",humans:1};
+function buildFolkGrid(){
+  const g=el("folkGrid"); g.innerHTML="";
+  FOLKLORES.forEach(t=>{
+    const d=document.createElement("div"); d.className="folk"+(t.id===sel.folklore?" on":"");
+    d.innerHTML=`<div class="dot" style="background:${t.color}"></div><div class="n">${t.name}</div><div class="s">${t.tagline}</div>`;
+    d.onclick=()=>{ sel.folklore=t.id; buildFolkGrid(); };
     g.appendChild(d);
   });
 }
@@ -1233,20 +1862,29 @@ function wireSeg(id,key,cast){
       sel[key]=cast(b.dataset.v); };
   });
 }
-buildTribeGrid();
-wireSeg("segSize","size",Number); wireSeg("segAI","ai",Number); wireSeg("segMode","mode",String);
+buildFolkGrid();
+wireSeg("segSize","size",Number); wireSeg("segAI","ai",Number); wireSeg("segMode","mode",String); wireSeg("segWorld","world",String); wireSeg("segDiff","diff",String); wireSeg("segHumans","humans",Number);
 el("btnStart").onclick=()=>{
-  newGame({tribe:sel.tribe,size:sel.size,ai:sel.ai,mode:sel.mode});
+  newGame({folklore:sel.folklore,size:sel.size,ai:sel.ai,mode:sel.mode,world:sel.world,diff:sel.diff,humans:sel.humans});
   startScreen.classList.remove("on"); el("mClose").style.display="";
   renderHUD(); renderActions(); save();
-  toast("Your tribe is founded. Explore!");
+  toast("Your folklore is founded. Explore!");
+  // §2 randomized order: seat 0 may be a CPU or the second human
+  const first=G.players[0];
+  if(!first.human){ setTimeout(()=>{ aiTurn(0); if(!G.over) advancePlayer(); },300); }
+  else { G.viewer=0; if(multiHuman()) showCurtain(0); renderHUD(); }
+};
+el("curtainGo").onclick=()=>{
+  el("curtain").classList.remove("on");
+  centerCameraOn(capitalOf(G.current));
+  renderHUD(); renderActions();
 };
 el("btnContinue").onclick=()=>{ if(loadSave()){ el("mClose").style.display=""; } };
 if(hasSave()) el("btnContinue").style.display="block";
 
 // keyboard: Enter/Space = end turn, Esc = deselect
 addEventListener("keydown",e=>{
-  if(startScreen.classList.contains("on")||el("scrim").classList.contains("on")) return;
+  if(startScreen.classList.contains("on")||el("scrim").classList.contains("on")||el("curtain").classList.contains("on")) return;
   if(e.key===" "||e.key==="Enter"){ if(isHumanTurn())endTurn(); }
   else if(e.key==="Escape") clearSel();
 });
