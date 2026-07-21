@@ -73,6 +73,14 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
     curtain between human turns (same-paint switch, no fog leak; also shown on save resume);
     HUD shows the active folklore; win/loss generalised (defeat only when ALL humans fall,
     winner named on the end screen). Save blob carries viewer — netcode-ready per §14.
+[11] §14 Cloudflare online rooms (user-commissioned, ends the old negative scope): host gets a
+    4-digit room code (always visible in the HUD), lobby fills by code, host-only Start when
+    full; Pages Functions (/api/create|join|state|start|submit) + KV room blobs on the same
+    toltales.pages.dev origin; the save snapshot IS the network format; strictly sequential
+    turns — the active client simulates trailing CPU turns then hands off (remote humans'
+    startPlayerTurn runs on THEIR device so income/reward modals land correctly); 3s polling;
+    client-side fog per §14 friend-game trust; elimination beats re-shown from state diffs;
+    humans 1–4 (seg extended), online requires 2+. Rooms expire after 3 idle days.
 -->
 <style>
   :root{
@@ -189,6 +197,7 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
 <div id="hud">
   <div class="badge"><span>Turn</span><b id="hudTurn" class="mono">1</b></div>
   <div class="badge"><b id="hudFolkName">—</b></div>
+  <div class="badge" id="hudRoom" style="display:none">🔑 <b id="hudRoomCode" class="mono">—</b></div>
   <div class="badge"><span class="star">📜</span><b id="hudInfluence" class="mono">0</b><small id="hudInc">+0/t</small></div>
   <button class="btn" id="btnTech">📖 Lore</button>
   <div class="grow"></div>
@@ -211,6 +220,11 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
 </div>
 
 <div id="toast"></div>
+
+<!-- online lobby -->
+<div class="scrim" id="lobbyScrim">
+  <div class="modal"><div class="mbody center" id="lobbyBody"></div></div>
+</div>
 
 <!-- hot-seat curtain -->
 <div id="curtain">
@@ -244,9 +258,9 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
         <div class="seg" id="segSize">
           <button data-v="9">Tiny</button><button data-v="12" class="on">Small</button><button data-v="16">Large</button>
         </div></div>
-      <div class="field"><label>Humans (hot-seat)</label>
+      <div class="field"><label>Humans</label>
         <div class="seg" id="segHumans">
-          <button data-v="1" class="on">1</button><button data-v="2">2</button>
+          <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button>
         </div></div>
       <div class="field"><label>CPU rivals</label>
         <div class="seg" id="segAI">
@@ -261,6 +275,10 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
           <button data-v="easy">Easy</button><button data-v="medium" class="on">Medium</button><button data-v="hard">Hard</button><button data-v="crazy">Crazy</button><button data-v="insane">Insane</button>
         </div></div>
       <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:6px">Found your folklore ▶</button>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn" id="btnHost" style="flex:1">🌐 Host online</button>
+        <button class="btn" id="btnJoin" style="flex:1">🔑 Join a code</button>
+      </div>
       <button class="btn" id="btnContinue" style="width:100%;margin-top:8px;display:none">Continue saved game</button>
     </div>
   </div>
@@ -409,7 +427,7 @@ function newGame(opts){
     cam:{x:0,y:0,z:1}, mapMode:opts.mode
   };
   // --- players: humans first by folklore pick, CPUs fill in, then §2 randomized turn order ---
-  const humansN=Math.max(1,Math.min(opts.humans||1,2));
+  const humansN=Math.max(1,Math.min(opts.humans||1,FOLKLORES.length));
   const aiN=Math.max(0,Math.min(opts.ai, FOLKLORES.length-humansN));
   const humanFolklore = FOLKLORES.find(t=>t.id===opts.folklore) || FOLKLORES[0];
   const usedFolklores = new Set([humanFolklore.id]);
@@ -883,7 +901,7 @@ const clamp=(v)=>Math.max(0,Math.min(255,v));
 /* hot-seat: the screen renders the fog of G.viewer (the last human whose turn started) */
 function viewIndex(){ return G.viewer||0; }
 function viewingPlayer(){ return G.players[viewIndex()]; }
-function isHumanTurn(){ return !G.over && G.players[G.current].human; }
+function isHumanTurn(){ return !G.over && G.players[G.current].human && (!MP.on || G.current===MP.slot); }
 function multiHuman(){ return G.players.filter(p=>p.human).length>1; }
 function showCurtain(pid){
   const p=G.players[pid];
@@ -1379,6 +1397,13 @@ function advancePlayer(){
     G.turn++;
   }
   G.current=next;
+  // §14 online handoff: a remote human's turn is played on THEIR device — upload and wait.
+  // startPlayerTurn deliberately does not run here, so their income/rewards happen locally to them.
+  if(MP.on && G.players[next].human && next!==MP.slot){
+    renderHUD(); renderActions();
+    mpPush(true);
+    return;
+  }
   startPlayerTurn(next);
 }
 function startPlayerTurn(pid){
@@ -1417,9 +1442,10 @@ function startPlayerTurn(pid){
 
   renderHUD();
   if(p.human){
-    G.viewer=pid;                          // switch the screen to this human's fog…
-    if(multiHuman()) showCurtain(pid);     // …behind an opaque curtain (same paint, no leak)
+    G.viewer=MP.on? MP.slot : pid;         // online: the screen is always my fog
+    if(multiHuman() && !MP.on) showCurtain(pid);   // hot-seat curtain only (same paint, no leak)
     renderHUD(); renderActions(); save();
+    if(MP.on) mpPush(false);               // spectators/eliminated players see my turn begin
   } else {
     // run AI then advance automatically
     setTimeout(()=>{ aiTurn(pid); if(!G.over) advancePlayer(); }, 220);
@@ -1473,42 +1499,172 @@ function endByScore(){
 function gameOver(won,byScore,winnerId){
   G.over=true; G.winner=(winnerId!==undefined)? winnerId : (won?0:null);
   clearSave();
+  if(MP.on) mpPush(false);                 // broadcast the ending to the other players
   showEndScreen(won,byScore);
 }
 
 /* --------------------------------- SAVE ---------------------------------- */
 const SAVE_KEY="toltales_save_v4";   // bumped: v3 tile format lacks library/storyteller fields
+// One snapshot format for local saves AND the network (§14: the save format IS the netcode format)
+function snapshotState(){
+  return {
+    N:G.N,mode:G.mode,world:G.world,diff:G.diff,viewer:G.viewer,turn:G.turn,current:G.current,
+    over:G.over,winner:G.winner,nextUid:G.nextUid,
+    tiles:G.tiles.map(t=>[t.t,t.res,t.lib?1:0,t.story||0]),
+    units:G.units,
+    cities:G.cities,
+    players:G.players.map(p=>({...p,techs:[...p.techs],revealed:[...p.revealed],visible:[...p.visible]})),
+    cam:G.cam
+  };
+}
+function restoreState(d){
+  const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1],lib:!!a[2],story:a[3]||null}));
+  G={ N:d.N,mode:d.mode,world:d.world||"heartlands",diff:d.diff||"medium",turn:d.turn,current:d.current,
+      over:!!d.over,winner:(d.winner!==undefined)?d.winner:null,
+      tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,
+      players:d.players.map(p=>({...p,techs:new Set(p.techs),revealed:new Set(p.revealed),visible:new Set(p.visible)})),
+      sel:null,moveTiles:null,atkTiles:null, cam:d.cam };
+  G.viewer=(d.viewer!==undefined)? d.viewer : G.players.findIndex(p=>p.human);
+  recomputeIncome();
+}
 function save(){
-  try{
-    const data={
-      N:G.N,mode:G.mode,world:G.world,diff:G.diff,viewer:G.viewer,turn:G.turn,current:G.current,nextUid:G.nextUid,
-      tiles:G.tiles.map(t=>[t.t,t.res,t.lib?1:0,t.story||0]),
-      units:G.units,
-      cities:G.cities,
-      players:G.players.map(p=>({...p,techs:[...p.techs],revealed:[...p.revealed],visible:[...p.visible]})),
-      cam:G.cam
-    };
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
-  }catch(e){}
+  if(MP.on) return;                      // online games live in the room, not localStorage
+  try{ localStorage.setItem(SAVE_KEY, JSON.stringify(snapshotState())); }catch(e){}
 }
 function hasSave(){ try{ return !!localStorage.getItem(SAVE_KEY); }catch(e){ return false; } }
 function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
 function loadSave(){
   try{
     const d=JSON.parse(localStorage.getItem(SAVE_KEY)); if(!d) return false;
-    const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1],lib:!!a[2],story:a[3]||null}));
-    G={ N:d.N,mode:d.mode,world:d.world||"heartlands",diff:d.diff||"medium",turn:d.turn,current:d.current,over:false,winner:null,
-        tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,
-        players:d.players.map(p=>({...p,techs:new Set(p.techs),revealed:new Set(p.revealed),visible:new Set(p.visible)})),
-        sel:null,moveTiles:null,atkTiles:null, cam:d.cam, mode2:d.mode };
-    G.mode=d.mode;
-    G.viewer=(d.viewer!==undefined)? d.viewer : G.players.findIndex(p=>p.human);
-    recomputeIncome();
+    restoreState(d);
+    G.over=false; G.winner=null;         // a finished local game never persists anyway
     startScreen.classList.remove("on");
     renderHUD(); renderActions();
     if(multiHuman() && G.players[G.current].human) showCurtain(G.current);   // resume behind the curtain
     return true;
   }catch(e){ return false; }
+}
+
+/* ------------------------ ONLINE ROOMS (§14, Cloudflare KV) ------------------------
+   Host creates a room and receives a 4-digit code (always visible in the HUD).
+   Players join by code; when the lobby is full the host starts. Turns are strictly
+   sequential: the active player simulates any CPU turns that follow, then uploads the
+   snapshot and the next human takes over on their own device. Clients poll every 3s.
+   Fog is client-side (trust-the-client, per §14's friend-game stance).               */
+const MP={on:false, host:false, code:null, token:null, slot:-1, version:0, timer:null, settings:null};
+async function API(path,body,qs){
+  const r=await fetch("/api/"+path+(qs?("?"+qs):""),{
+    method:(body!==null&&body!==undefined)?"POST":"GET",
+    headers:{"content-type":"application/json"},
+    body:(body!==null&&body!==undefined)?JSON.stringify(body):undefined});
+  return r.json();
+}
+async function mpPush(handoff){
+  try{
+    const r=await API("submit",{code:MP.code,token:MP.token,state:snapshotState(),handoff:!!handoff});
+    if(r && r.version) MP.version=r.version;
+  }catch(e){}
+  if(handoff) mpStartPolling();
+}
+function mpStartPolling(){
+  clearInterval(MP.timer);
+  MP.timer=setInterval(async()=>{
+    if(!MP.on){ clearInterval(MP.timer); return; }
+    if(G && G.over){ clearInterval(MP.timer); return; }
+    if(G && G.current===MP.slot) return;              // my turn: this client is authoritative
+    const res=await API("state",null,`code=${MP.code}&token=${MP.token}&since=${MP.version}`).catch(()=>null);
+    if(res && res.state && res.version>MP.version) mpApply(res);
+  },3000);
+}
+function mpApply(res){
+  const prevAlive=G? G.players.map(p=>p.alive) : null;
+  restoreState(res.state);
+  MP.version=res.version;
+  G.viewer=MP.slot;
+  clearSel();
+  if(prevAlive) G.players.forEach((p,i)=>{ if(prevAlive[i] && !p.alive) showElimBeat(p); });
+  renderHUD(); renderActions();
+  if(G.over){ clearInterval(MP.timer); showEndScreen(G.winner===MP.slot, G.mode==="score"); return; }
+  if(G.current===MP.slot && res.handoff){ startPlayerTurn(MP.slot); toast("🔥 Your turn"); }
+}
+/* --- lobby --- */
+let lobbyTimer=null;
+function lobbyShow(html){ el("lobbyBody").innerHTML=html; el("lobbyScrim").classList.add("on"); }
+function lobbyHide(){ el("lobbyScrim").classList.remove("on"); if(lobbyTimer){ clearInterval(lobbyTimer); lobbyTimer=null; } }
+function openJoinEntry(){
+  lobbyShow(`<h1 style="font-size:24px">Join a telling</h1>
+    <p class="sub">Enter the 4-digit room code from your host.</p>
+    <input id="joinCode" inputmode="numeric" maxlength="4" placeholder="0000" autocomplete="off"
+      style="width:100%;font-size:30px;text-align:center;letter-spacing:10px;padding:10px;border-radius:10px;border:1px solid var(--line);background:#0d1116;color:var(--ink)">
+    <button class="btn primary" style="width:100%;margin-top:10px" id="joinGo">Join ▶</button>
+    <button class="btn" style="width:100%;margin-top:8px" id="lobbyCancel">Back</button>`);
+  el("lobbyCancel").onclick=lobbyHide;
+  el("joinGo").onclick=async()=>{
+    const code=el("joinCode").value.trim();
+    if(!/^\d{4}$/.test(code)){ toast("Codes are 4 digits"); return; }
+    const res=await API("join",{code}).catch(()=>null);
+    if(!res || res.error){ toast(res? res.error : "Could not reach the room"); return; }
+    MP.on=true; MP.host=false; MP.code=code; MP.token=res.token; MP.version=0;
+    lobbyLoop();
+  };
+}
+function lobbyRender(res){
+  const full=res.joined>=res.need;
+  lobbyShow(`
+    <p class="sub" style="margin-bottom:2px">${MP.host?"You are hosting — room code":"Joined — room code"}</p>
+    <h1 class="mono" style="font-size:46px;letter-spacing:12px;margin:4px 0">${MP.code}</h1>
+    <p class="sub">Tellers gathered: <b style="color:#eef2f7">${res.joined} / ${res.need}</b>${full?" — ready!":" — waiting…"}</p>
+    ${MP.host? `<button class="btn primary" style="width:100%" id="lobbyStart" ${full?"":"disabled"}>Start the telling ▶</button>`
+             : `<p class="sub">The host begins once the lobby is full.</p>`}
+    <button class="btn" style="width:100%;margin-top:8px" id="lobbyLeave">Leave</button>`);
+  if(MP.host){ const b=el("lobbyStart"); if(b && full) b.onclick=()=>hostStartOnline(res); }
+  el("lobbyLeave").onclick=()=>{ lobbyHide(); MP.on=false; MP.host=false; clearInterval(MP.timer); };
+}
+function lobbyLoop(){
+  clearInterval(lobbyTimer);
+  const tick=async()=>{
+    if(!MP.on){ lobbyHide(); return; }
+    const res=await API("state",null,`code=${MP.code}&token=${MP.token}&since=0`).catch(()=>null);
+    if(!res || res.error) return;
+    if(res.phase==="playing"){
+      if(!MP.host && res.state){ lobbyHide(); joinerEnter(res); }
+      return;
+    }
+    lobbyRender(res);
+  };
+  tick(); lobbyTimer=setInterval(tick,2000);
+}
+function hostStartOnline(res){
+  const S=res.settings||MP.settings||sel;
+  newGame({folklore:S.folklore,size:S.size,ai:S.ai,mode:S.mode,world:S.world,diff:S.diff,humans:S.humans});
+  const humanSeats=G.players.filter(p=>p.human).map(p=>p.id);   // join order ↔ seat order
+  MP.slot=humanSeats[0];
+  G.viewer=MP.slot;
+  API("start",{code:MP.code,token:MP.token,state:snapshotState(),humanSeats}).then(r2=>{
+    if(!r2 || r2.error){ toast(r2? r2.error : "Could not start"); return; }
+    MP.version=r2.version;
+    lobbyHide(); startScreen.classList.remove("on"); el("mClose").style.display="";
+    centerCameraOn(capitalOf(MP.slot));
+    renderHUD(); renderActions();
+    toast(`Room ${MP.code} — the telling begins`);
+    const first=G.players[0];
+    if(!first.human) setTimeout(()=>{ aiTurn(0); if(!G.over) advancePlayer(); },300);
+    mpStartPolling();
+  }).catch(()=>toast("Could not start"));
+}
+function joinerEnter(res){
+  MP.slot=res.yourSeat;
+  MP.version=res.version;
+  restoreState(res.state);
+  G.viewer=MP.slot;
+  startScreen.classList.remove("on"); el("mClose").style.display="";
+  centerCameraOn(capitalOf(MP.slot));
+  renderHUD(); renderActions();
+  toast(`You tell the ${G.players[MP.slot].name} tale`);
+  if(G.current===MP.slot){
+    if(res.handoff) startPlayerTurn(MP.slot);
+    // else: the opening turn — play immediately (no turn-1 income, matching local rules)
+  } else mpStartPolling();
 }
 
 /* ---------------------------------- UI ----------------------------------- */
@@ -1527,6 +1683,8 @@ function renderHUD(){
   el("hudFolkName").style.color=p.color;
   el("hudInfluence").textContent=p.influence;
   el("hudInc").textContent="+"+p.income+"/t";
+  if(MP.on){ el("hudRoom").style.display="flex"; el("hudRoomCode").textContent=MP.code; }   // code always visible
+  else el("hudRoom").style.display="none";
 }
 function renderActions(){
   const bar=el("actions");
@@ -1545,7 +1703,7 @@ function renderActions(){
       ()=>{ kindleMode=!kindleMode; renderActions(); }));
   }
   // end turn always
-  const eb=mkBtn(isHumanTurn()?"End Turn ▶":"…AI thinking","primary",()=>{ if(isHumanTurn())endTurn(); });
+  const eb=mkBtn(isHumanTurn()?"End Turn ▶":(MP.on&&G.players[G.current].human?`…${G.players[G.current].name}'s turn`:"…AI thinking"),"primary",()=>{ if(isHumanTurn())endTurn(); });
   eb.id="btnEnd"; if(!isHumanTurn()) eb.disabled=true;
   bar.appendChild(eb);
   renderHUD();
@@ -1825,7 +1983,8 @@ el("btnMenu").onclick=()=>openModal("Menu","",`
   <button class="btn" style="width:100%" id="mm_new">New game…</button>`) || setTimeout(()=>{
     el("mm_center").onclick=()=>{ centerCameraOn(capitalOf(viewIndex())); el("scrim").classList.remove("on"); };
     el("mm_save").onclick=()=>{ save(); toast("Saved"); };
-    el("mm_new").onclick=()=>{ el("scrim").classList.remove("on"); startScreen.classList.add("on"); };
+    el("mm_new").onclick=()=>{ MP.on=false; MP.host=false; clearInterval(MP.timer); clearInterval(lobbyTimer);
+      el("scrim").classList.remove("on"); startScreen.classList.add("on"); renderHUD?.(); };
   },0);
 
 /* --- end screen --- */
@@ -1881,6 +2040,21 @@ el("curtainGo").onclick=()=>{
 };
 el("btnContinue").onclick=()=>{ if(loadSave()){ el("mClose").style.display=""; } };
 if(hasSave()) el("btnContinue").style.display="block";
+
+/* online buttons — need the hosted origin for /api */
+const IS_HOSTED=location.protocol==="http:"||location.protocol==="https:";
+el("btnHost").onclick=async()=>{
+  if(!IS_HOSTED){ toast("Online play runs on the hosted game — toltales.pages.dev"); return; }
+  if(sel.humans<2){ sel.humans=2; toast("Online needs 2+ humans — set to 2"); }
+  const res=await API("create",{settings:{...sel}}).catch(()=>null);
+  if(!res || res.error){ toast(res? res.error : "Could not create a room"); return; }
+  MP.on=true; MP.host=true; MP.code=res.code; MP.token=res.token; MP.version=0; MP.settings={...sel};
+  lobbyLoop();
+};
+el("btnJoin").onclick=()=>{
+  if(!IS_HOSTED){ toast("Online play runs on the hosted game — toltales.pages.dev"); return; }
+  openJoinEntry();
+};
 
 // keyboard: Enter/Space = end turn, Esc = deselect
 addEventListener("keydown",e=>{
