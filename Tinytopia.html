@@ -81,6 +81,485 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
     startPlayerTurn runs on THEIR device so income/reward modals land correctly); 3s polling;
     client-side fog per §14 friend-game trust; elimination beats re-shown from state diffs;
     humans 1–4 (seg extended), online requires 2+. Rooms expire after 3 idle days.
+[12] Phone layout fix: #hud/.field/.seg now wrap under 480px (the HUD was nowrap — in an online
+    match ☰ rendered 154px past a 380px edge, unreachable), badges/buttons tighten, toast clears
+    the two-row HUD, ctxcard+zoom lift above a wrapped action bar. Verified 320/360/380px; desktop
+    unchanged. Headroom confirmed for the 5 map sizes and 9 CPU counts landing next.
+[13] §2 map sizes: added Huge 18 (324 tiles) and Vast 21 (441) to the shelf, the top two of §2's
+    121·144·225·324·441 — as-built 9/12/16 was already off-spec; these grow toward it. Markup only
+    (wireSeg is generic). Verified at N=18/21: tile counts exact, capitals distinct + on land, one
+    starting Wanderer each, villages/libraries scale (13/9 at N=21); 60.1 fps sustained, worst
+    frame 17.6ms, AI turn 0.12ms. Default stays Small (12).
+[14] §2 seat count → 10: six more clearly-marked placeholder mirror folklores (Ash Rede, Amber
+    Verse, Fern Psalm, Bramble Ode, Heath Ballad, Dusk Litany) bring the table to MAX_SEATS=10;
+    CPU seg extended to 9 with over-cap counts greyed out and the pick snapped down (humans+CPU
+    ≤10 per §2, no silent clamp). placeCapitals rebuilt onto a seeded ring — the old 8-entry
+    corners+edges table wrapped with i%8 and stacked seats 9–10 on existing capitals; new
+    capitalSpot() relaxes land→free→any so a crowded board still seats ten. Accents chosen by
+    maximising minimum CIELAB ΔE against the four taken colours: worst pair 34.8 (hand-picked
+    was 22.3), all ≥3.5:1 on the midnight field. Fixed pre-existing pickText() bug — its naive
+    luminance cutoff put white glyphs on Moss Choir at 2.29:1; now WCAG-based (8.38:1).
+    Verified: 125 map-gens at 10 seats, 0 duplicate/water capitals; 40-round 10-seat game clean.
+    Picker shows only playable:true folklores (today just the Lantern Court) — mirrors are an
+    auto-assign name+accent pool for CPUs and humans 2–4, never menu tiles; .folks grid is
+    auto-fit so one playable folklore reads as a banner and more flow into a grid.
+[15] §7.2 level curve + §6.2 Listener gauge: threshold level+1 → levelNeed(level)=level*2+2 (L1→2
+    costs 4, L2→3 six, L3→4 eight). Passive +1/turn now reaches L2 on turn 4 (was turn 2), L3 on
+    10 (was 5), and turn-40 level 6 (was 8) — growth no longer outruns every other system, and
+    harvesting is the lever. Tuning knob. levelNeed() is the single source of truth: addListeners,
+    the city modal (which had the formula hardcoded and would have drifted) and the new gauge all
+    read it. Gauge = parchment progress bar under the city coin, own cities only (a rival's growth
+    is not public), exact n/m text above z>1.05; distinct from gold Influence per the §1 three-noun
+    rule. Drawn below the coin so a unit standing on the city never hides it.
+[16] Touch tap fix (Android/Samsung "you have to hold down to see information"): the tap-vs-drag
+    test was 6px of MANHATTAN travel, which a finger routinely exceeds on a quick tap — so only a
+    deliberate press-and-hold (which stays still) ever reached handleTap, and tapping a unit looked
+    dead. Now Euclidean with a pointerType-aware slop: 6px mouse, 14px touch/pen. Crossing the
+    threshold re-anchors downPos/dragCam so panning starts from that point instead of jumping the
+    slop distance. Verified with synthetic pointers: 9x4 and 10x8 finger jitter now select (both
+    were drags before), 60x40 still pans, mouse keeps its tight 6px; 15px drag pans 0px (was a
+    15px jolt), 50px pans 35px.
+[17] Unit standing on your own city no longer blocks it: handleTap step 3 selected the unit and
+    returned, so step 4 (open city) was unreachable — you could not train or build at a garrisoned
+    city. Two ways in now: the action bar gains a 🏛 Capital/City button while a unit sits on your
+    own city, and tapping the already-selected unit falls through to the city panel. cityUnder() is
+    foreign-only so the siege UI is untouched — verified across the lifecycle: own capital → 🏛,
+    neutral village mid-siege → "Converting…" with no 🏛, siege complete → "Take City", after
+    capture → 🏛 City.
+[18] §9 combat forecast: tapping an enemy now arms it (thick red ring) and shows the trade —
+    damage dealt, target hp after or "destroyed ✦", counter damage or "none" WITH the reason
+    (target destroyed / out of its range / it cannot see you / too weak to wound), your hp after
+    or "you die", and the ✦ Storied payoff on a kill. Tap again or press ⚔ Attack to commit;
+    tapping anywhere else cancels. previewAttack() is a read-only projection of doAttack+retaliate
+    in the same resolution order (a kill suppresses the counter). retaliate()'s fog test calls
+    recomputeVision, which mutates, so the forecast uses a new pure playerSeesTile() mirroring the
+    same radii. pendingTarget is module-level, NOT on G — G is the save/network blob and a unit
+    reference would not survive JSON. Verified over 600 randomised scenarios (terrain, walls,
+    shrines, storied, melee+ranged, both rosters): 0 forecast failures, and playerSeesTile agreed
+    with the engine's own recompute in all 600. Exposes exact enemy hp, as Polytopia does.
+[19] Active-unit ring + a dash-rule bug it exposed. New canAct(u) = !acted && (movesLeft>0 ||
+    !attacked) mirrors exactly what selectUnit offers; your units carry a soft gold ring while
+    they can still move or strike, and the "done" dim is now its exact complement so the two can
+    never disagree (verified over all 8 flag combinations). Building the predicate surfaced a
+    pre-existing exploit: selectUnit gated atkTiles on !attacked but NOT !acted, so a dash:false
+    unit that had already moved could be re-selected and still attack — move+attack in one turn,
+    against the authoring guide's definition of dash. Fixed there, and the identical violation in
+    aiMoveUnit (which struck after moving regardless of dash) gated behind UNITS[type].dash so
+    CPUs do not keep a rule the player lost. Verified: exploit closed, attack-without-moving
+    still works, 25 rounds x 5 CPUs on Hard = 11 AI attacks, 0 move-then-attack violations.
+[20] §11 Kindle throttle: charges came too fast — §8.4 minted one per Storied promotion, every
+    unit that ever lands a kill promotes, and every folklore mirrors the LC, so they stockpiled.
+    Now KINDLE_PER_STORIED=2 (a charge every second promotion, via a new per-player storiedCount)
+    and a hard KINDLE_CAP=3; both tuning knobs. New grantKindle() returns whether anything was
+    actually gained, so the Storied toast never promises a charge the cap swallowed, and the L2
+    reward card locks at cap (unclickable) rather than being wasted — picking it at cap pays +2
+    Influence instead. Verified: accrual 1/2/2/3 then held vs the old 2/3/4…11 over ten promotions,
+    cap never exceeded, card locks and unlocks with the cap, storiedCount survives a save
+    round-trip (players serialise by spread, so no save-format change). CPU never picked the
+    Kindle reward anyway (aiLevelReward row 2 takes freelore/inc1) — its only source was Storied,
+    now halved too.
+[21] §14 online rejoin: leaving a room was permanent. MP{code,token,slot} lived only in memory, so
+    a refresh or a reaped background tab lost them, and /api/join answers 409 "that telling already
+    began" once play starts — no way back in. Credentials now persist to toltales_room_v1 (written
+    at create/join/start/enter, cleared on Leave and on game over), and a "↩ Rejoin room ####"
+    button on the start screen calls /api/state with the stored token — which already resolves a
+    token to its seat, so this is CLIENT-ONLY and needs no Pages Function redeploy. A dead
+    connection is distinguished from a dead room: only a server-reported error discards the token,
+    since clearing on a network blip would recreate the very lockout this fixes. Verified against a
+    stubbed API: persist+restore, rejoin mid-game (viewer=own seat, correct token/since=0), room
+    gone → cleared, seat lost → cleared, offline → token PRESERVED and a later retry succeeds,
+    still-in-lobby → returns to lobby, game over → cleared.
+    Known edge (not fixed): refreshing in the gap between receiving handoff and startPlayerTurn's
+    mpPush(false) landing re-runs startPlayerTurn, granting that turn's income twice. Narrow;
+    closing it wants a turn sequence number on the room blob.
+[22] Watchable enemy turns: aiTurn resolved a whole CPU turn inside one 220ms timeout, so units
+    teleported and fights happened invisibly. Split into aiEconomy() (research/training — not board
+    events, still instant), a synchronous aiTurn() kept for headless simulation, and a new async
+    aiTurnPaced() that walks units one at a time with AI_STEP_MS=280 between actions. The beat only
+    happens when the viewer can actually see it: actor on a fog-lit tile (matching the draw
+    filter, Wildcalling included) OR the viewer's own force changed hp/count, so an unseen attacker
+    hurting you is never missed. All three call sites now AWAIT it — advancePlayer()/mpPush()
+    firing mid-simulation would upload a half-played turn to the room (§14). Tapping sets aiSkip
+    and drops the remaining beats. Added lookAtIfOffscreen(), which pans to the action only when
+    off-screen and PRESERVES zoom (centerCameraOn cannot — see [23]).
+    Verified: beats scale exactly with visible units (0/1/2/3 visible → 0/1/2/3 beats) with 4
+    unseen CPU units on the board costing nothing; a fully-unseen 7-unit turn takes 3ms; call
+    order is paced:start → paced:end → advance with no advance mid-simulation; sync aiTurn intact
+    (1ms); a live 4-seat round cycles and returns control to the human. Wall-clock pacing itself
+    was not measurable here — a hidden preview pane clamps setTimeout to ~1000ms, which inflated
+    every duration reading (a 3-beat turn measured 2751ms); beat COUNTS and ordering are exact.
+[23] §7.3 L1 Wandering Scout now walks: the path is drawn from the seeded RNG up front (identical
+    to the old instant reveal), then travelled a tile at a time at SCOUT_STEP_MS=170 with the fog
+    lifting as it goes and the camera panning only if it wanders off-screen. The walker is NOT a
+    unit — never enters G.units, so it costs no §7.2 capacity and cannot be ordered — and its
+    finally block re-applies the whole path however the walk ends, so an interrupted animation can
+    never leave the fog half-lifted. Resolves instantly (no walk) for CPUs, for a hot-seat human
+    who is not the current viewer (no fog leak), and for a second scout while one is already
+    walking. Drawn translucent with a DASHED ring: the solid gold ring now means "your unit, still
+    has actions" ([19]), and a transient traveller must not read as a commandable unit.
+    Verified: walk reveals exactly the tiles the instant version did (17, within §18.2's 14–25),
+    walker appears and clears, all three instant-resolve guards hold.
+[24] "Zooming loses your place" — two separate faults, neither in zoomAt (whose anchor maths was
+    already correct). (a) PINCH RELEASE: downPos/dragCam are captured on the first finger down;
+    a pinch then moves the camera but leaves them stale, so lifting one finger and nudging the
+    other computed cam = prePinchCam − delta and threw the board back to where it was before the
+    zoom. New reanchorDrag() re-seats downPos/dragCam to the surviving pointer and current camera
+    on every pointerup/pointercancel that leaves exactly one finger down. Measured on a
+    reconstructed post-pinch state: a 4px nudge moved the camera 474 units (landing 86 from the
+    pre-pinch position) before, 2 units after. (b) centerCameraOn force-set z=1 — not by intent,
+    but because it centred with innerWidth/2 while worldToScreen scales by z, so it was only
+    correct at z=1; every call (curtain dismiss, joining a room, menu Centre, new game) discarded
+    your zoom. Now divides by z: verified zoom preserved AND the tile centred to 0px at z =
+    0.6/1/1.5/2.4 (it previously mis-centred at every zoom but 1).
+    Caveat: the pinch path could not be driven end-to-end here — setPointerCapture throws
+    NotFoundError on synthetic pointer ids, silently aborting the listener, so a fabricated second
+    finger never enters the pointers map. Fix (a) was therefore tested in isolation against a
+    hand-built post-pinch state; single-finger drag (pans 45px for a 60px drag, slop-correct) and
+    tap-to-select were regression-checked normally. Real two-finger pinch needs a device.
+[25] Pacing retune from the first on-device playtest (the [22]/[23] values were never wall-clock
+    tested — a hidden preview pane clamps setTimeout to ~1000ms). AI_STEP_MS 280→420 and
+    SCOUT_STEP_MS 170→300. Scout walk is now 12 x 300 = 3.6s; that is long for an animation you
+    cannot skip, and it only pays for itself once the walk shows UNITS as well as terrain (next
+    step) — revealAround writes p.revealed (explored) but the unit draw filter reads p.visible,
+    so today the scout uncovers ground and nothing standing on it.
+[26] Scout walk now shows what it finds, and can be skipped. New transient scoutSeen set is a
+    second source of visibility for the DRAW FILTER ONLY, filled by revealAround while a walk is
+    live and dropped in walkScout's finally. Deliberately not p.visible: recomputeVision rebuilds
+    that from scratch on every move, so writes there are either clobbered mid-walk or left behind
+    as a real fog leak. scoutSeenFor pins the set to the scouting seat so a hot-seat player who
+    ends their turn mid-walk cannot hand the next player lit tiles. Wildcalling stealth still
+    applies (!hiddenFrom is untouched) — the scout is not a unit and cannot trigger adjacency.
+    Tapping sets scoutSkip and the walk breaks; handleTap swallows that tap so it does not also
+    order whatever sat under your finger, and the finally block still applies the whole path, so
+    skipping costs no fog. Cities were never affected (they draw off revealed, not visible).
+[27] Harvest under your own unit — the [17] swallowed-tap bug one tile over. handleTap step 3
+    selected the unit and returned, so step 5 (showTileCard → Harvest) was unreachable and a
+    resource could never be harvested while anything stood on it. Re-tapping the selected unit now
+    falls through to the tile card, and the action bar gains a resource button beside 🏛. Falls
+    through on ANY resource, not just harvestable ones, so the card can still tell you which tech
+    you are missing or that the tile is outside your territory.
+[28] §7.2 army capacity is now PER CITY, not Σ over cities (design ruling 2026-07-28 — supersedes
+    the spec's sum reading; recorded as §18.6). Every unit carries `home`, the id of the city that
+    produced it; a city trains while (its units still owned by its owner) < level+1. Three cities
+    at cap 3 still means nine units, but the nine are no longer fungible — a big capital can no
+    longer bankroll an army that fights out of a border village.
+    The owner===c.owner half of cityUnitCount() is doing all the work, and both capture rulings
+    fall out of it with NO bookkeeping at capture time: lose a city and its units survive pointing
+    at a city you do not own, so they gate nothing and cannot be replaced; retake it and they match
+    again and re-occupy its slots; the new owner's books only ever count what they produced there.
+    Over-cap is legal (recapture at a lower level) and blocks training until you are back under —
+    strict <. canFieldMore() is DELETED rather than left callable, since its global reading is now
+    wrong; armyCap() survives as a display-only empire total. Item 7 (a Storyteller unit counted
+    against no city) needed no separate fix — it was a symptom of there being no per-city books at
+    all, and field spawns (Storyteller, library reward) now home to the nearest city WITH a free
+    slot via homeCityFor(), which returns null when all are full and blocks the spawn exactly as
+    the old global check did. aiEconomy's `if(!canFieldMore) break` became `if(!canTrainAt(c))
+    continue` — under per-city books one full city must not stop the CPU training at the rest.
+    Units serialise by reference so `home` needs no save-format change, but restoreState backfills
+    `home===undefined` from pre-[28] blobs to the owner's nearest city: a unit with no home counts
+    against nobody, i.e. free army forever. `undefined` not `==null` — null is legitimate.
+    Verified: per-city books independent (cap full while a 2nd city still trains); the full capture
+    lifecycle (3 held → city lost: 3 orphans survive, new owner's books read 0 → new owner trains:
+    1, not 4 → retaken: orphans re-occupy, 3/3, blocked → over-cap 3/2 legal and blocked → 2/2
+    blocked → 1/2 trains again); Storyteller/library homing; all-full blocks the purchase; save
+    round-trip preserves home; legacy blob backfills with 0 undefined and 0 unowned homes; the real
+    city-modal click path trains and refuses correctly. Soak: 12 games, 159 rounds, 315 units
+    spawned, 0 cap violations, 0 invalid homes, 33 AI seats training from more than one city.
+[29] §9/§10 naming: every city gets a name, every seat gets a House. Two PLACEHOLDER pools marked
+    like the mirror folklores (authoring §2.1) — CITY_NAMES (100) and HOUSE_NAMES (48) — swappable
+    wholesale without touching code. cityName() draws without replacement via the seeded RNG, so a
+    map seed always names its cities the same way; the numeric backstop never fires (a 21² board
+    tops out at 23 cities). Houses draw without replacement per match.
+    NOTE ON THE NOUN: the request said "tribe", but §1's glossary retires tribe as the OLD
+    prototype word for folklore, so reusing it would leave the design law and the game disagreeing
+    on one word. Renamed to House on approval: houseOf(p) renders "Emberwake of the Lantern Court".
+    Display only — nothing mechanical hangs off it, and p.name (the folklore) is untouched.
+    Surfaces: HUD, pass-the-device curtain, elimination beat ("The tale of Emberwake of the Lantern
+    Court is no longer told"), end-screen table, unit card owner. Cities: modal title, level-up
+    title, and the capture toast, which now reads "Ottermarch now tells your tale" instead of
+    "Captured a village!". Start screen gains a House field, prefilled from the pool with a 🎲
+    reroll; it uses Math.random NOT the seeded ri(), since it runs before newGame's srand() and the
+    map draw must not depend on how many times someone pressed the button. Typing a pool name
+    removes it from the bag so a CPU cannot also draw it.
+    Neither name needs a save-format change (cities and players serialise by spread), but
+    restoreState backfills both from pre-[29] blobs without repeating anything already in play.
+    Verified: pools 100/48, zero overlap between them and zero collision with the ten folklore
+    names; longest entries Cinderhollow (12) / Glimmerthread (13). 40 games at 21² with 10 seats —
+    max 23 cities, 0 duplicate city names, 0 duplicate Houses, 0 unnamed. Capture/modal/toast all
+    read the name; save round-trip exact; legacy blob backfills unique and complete.
+    HUD MEASURED at 380px (the [12] failure case, incl. the online room badge): the full
+    "House of the Folklore" form never overflows the viewport and stays on two HUD rows for every
+    pool name; ☰ sits at 370px. A 19-char House pushes it to three rows, which is why the input is
+    maxlength=14 — one token to raise if you want longer names and will accept the extra row.
+    (The document's horizontal scroll at 380px is the canvas, pre-existing and identical with no
+    House at all — not touched here.)
+    Online caveat: settings travel as {...sel} so the HOST's typed House reaches the match, but
+    joiners cannot name theirs — the whole player table comes from the host's snapshot (§14), and
+    per-joiner names would need an /api/join change. The House follows the folklore pick (the
+    pre-shuffle seat), which in a multi-human game is not necessarily MP.slot — that is the
+    existing seat-assignment quirk, not new here.
+[30] Three confirmed bugs, all pre-existing, none reported.
+    (a) SCORE MODE COULD NEVER END. The limit check sat in startPlayerTurn gated on `pid===0`.
+    Turn order is randomised (§2), so seat 0 is an arbitrary player — in testing it was a CPU — and
+    once seat 0 was eliminated startPlayerTurn(0) never ran again and the check could not fire at
+    all. Measured: a Score game live at turn 35 against a 30-turn limit. Moved to advancePlayer,
+    where the round actually rolls over, so it is seat-independent. Verified: ends at turn 31 with
+    seat 0 dead AND with everyone alive, does not end early at turn 5, Domination unaffected at
+    turn 100.
+    (b) CAPTURING A CAPITAL GAVE YOU TWO. `c.capital = c.capital && false` was immediately undone
+    by `if(wasCapital) c.capital=true` — the pair cancels, and the comment stated the opposite of
+    what the code did. A captor held two capitals: ★ twice, capitalOf() ambiguous, and the
+    capital-only Wellspring (§7.3 L3) takeable at both. Ruling: a captured capital becomes an
+    ORDINARY city — its level carries over, which is the real prize, but the capital seat does not,
+    so losing your own capital is permanent. Verified: 1 capital after capture, level kept,
+    Wellspring not offered at the captured city and still offered at the real one.
+    (c) "Centre on capital" silently did nothing once your capital fell — centerCameraOn guards
+    `if(!c) return`, and (b) makes a capital genuinely losable, so this stops being theoretical.
+    New homeView(pid) falls back capital → any owned city → any surviving unit; all five
+    centerCameraOn call sites use it, including the online rejoin path where it matters most.
+    Verified: camera moves with no capital, falls back to a unit with no cities, throws nothing
+    with neither.
+    Noted, NOT changed: the §7.3 ladder runs one city-level later than the spec numbers it, because
+    offerLevelReward uses row=min(level-1,5) and merges rows 0 and 1. Actual: L2→income/free
+    unit/scout, L3→lore/Kindle/income, L4→Wellspring/Shrine/Wall, L5→border/income, L6+→score/income.
+    Pre-existing and coherent; flagged as a tuning question, not fixed silently.
+[31] §11 CPUs now spend Kindle (closes the §18.3 gap). doKindle was written against
+    viewingPlayer(), so a CPU literally could not fire one — the reveal is now kindleAt(p,x,y) for
+    any player and doKindle is a thin viewer wrapper. New aiKindle() scores every candidate centre
+    by how many tiles its 7x7 would NEWLY reveal, minus distance from that CPU's own cities and
+    units, so it lights ground it is about to expand into rather than a far corner. Scan steps by 2
+    (~64 candidates at N=21); 20 full scans cost 0.1ms. KINDLE_MIN_GAIN=20 (of 49 tiles) stops it
+    burning a charge on mostly-known ground; KINDLE_DIST_PENALTY=1.5. Both tuning knobs.
+    Called from aiEconomy, so it covers the paced and headless AI paths from one site.
+    Verified: fires and reveals 47 new tiles, no-ops with 0 charges, refuses to spend on a fully
+    explored map, human path byte-identical (49 tiles, 1 charge). Soak: 8 hard 5-seat games —
+    CPUs spent ~14-15 charges each instead of hoarding, peak held never exceeded KINDLE_CAP.
+    This does make CPUs better informed, which is a real difficulty bump on top of §13's income
+    cheat; aiKindle() is a one-line disable if that trade is unwanted.
+[32] Main menu shell. The start screen was one long scroll holding the folklore picker, the House
+    field, six option rows and five buttons at once — the reported "looks like a lot". It is now a
+    stack of panes inside the same modal with exactly one carrying .on: Main (New Game / Resume /
+    Multiplayer as full-width rows, plus a Settings/Lore/Stats bottom bar), New Game, Multiplayer,
+    and shells for the three bottom-bar screens.
+    Deliberately a PURE RESTRUCTURE: every control keeps its original element id, so btnStart,
+    btnHost, btnJoin, btnRejoin, the six segs, folkGrid and the House field are wired exactly as
+    before and none of their handlers were touched. Reordering, tile counts, per-CPU folklore and
+    per-CPU difficulty are [33] — this step only has to leave the game playable, and does.
+    Host/Join/Rejoin moved out of the front screen into Multiplayer, per the ruling that room
+    listing is device-local only (option a): no discovery endpoint exists, and adding one would
+    turn 4-digit codes from friend-game privacy into a public list. The pane says so plainly.
+    Resume is a DISABLED row rather than a hidden one (it was display:none before) — a row that
+    vanishes makes the menu jump, and its sub-label now states why it is dim. refreshMenu() re-reads
+    hasSave()/storedRoom() on every entry, and the two mid-session paths back to the menu (the ☰
+    "New game…" item and the end screen's "again" button) now call openMenu(), which also snaps
+    back to the Main pane — previously they would have dropped you into whichever pane you left.
+    Verified at 380px: navigation in/out of all six panes with exactly one visible in every case;
+    all 14 original controls present after the move; a game starts through the real btnStart (2
+    seats, House applied); Resume dim with no save and enabled + relabelled once one exists;
+    Resume actually reloads to the same turn; deep-linking to a sub-pane then re-entering resets
+    to Main.
+[33] New Game pane rebuilt. Grouped and reordered YOUR TELLING → THE BOARD → THE TABLE → THE
+    RULES, so the screen reads board-then-opponents-then-rules instead of the previous arbitrary
+    order. Option rows now SWIPE: .seg was flex-wrap:wrap under 480px, which stacked Map size and
+    Difficulty into three ragged lines; it is nowrap + overflow-x with scroll-snap, so each row is
+    one scrolling line and the picked button is scrolled back into view. Verified at 380px: all six
+    rows render on exactly 1 line, none overflow the pane, no document h-scroll.
+    Map sizes carry their tile count on the button (Small / 144 tiles) plus a caption giving the
+    grid (12 x 12 - 144 tiles). New captions under World, Mode and Difficulty say what the choice
+    actually DOES rather than making the name carry it — Mode especially, which previously read as
+    three bare words.
+    PER-RIVAL FOLKLORE AND DIFFICULTY. sel.rivals[i]={folklore,diff}; "random"/null both mean
+    "use the default", so an untouched rival behaves exactly as before. Collapsed to a one-line
+    summary by default (nine rivals x two dropdowns is far too much to open a phone screen on) and
+    expands to a row per rival with a colour dot, folklore select and difficulty select.
+    Per-rival folklore was already permitted by §2; per-rival DIFFICULTY amends §13's "applies to
+    all CPUs" — recorded as spec §18.8. Every difficulty read now goes through playerDiff(p) so
+    the income cheat and the Insane free-lore-node can never drift apart; the free node is granted
+    per-rival, so an Insane rival in a Medium match gets it and only it does.
+    One folklore, one teller: syncRivals() resolves clashes at the source (yours beats a rival's,
+    an earlier rival beats a later one). The dropdown handler already de-duped, but state arriving
+    any other way would have shown two rivals claiming a folklore only one could have — newGame
+    fell back to random correctly, so this was a UI lie rather than a broken match.
+    Verified: captions track every seg; rival rows follow the CPU count both ways; assigned
+    folklores all reach the match with no duplicates; per-rival income measured easy/default/insane
+    = +1/+2/+7 (gained 4/5/10) in one round; free lore node only on the Insane rival (1 tech vs 0);
+    humans never carry a diff; 10 seats all-assigned start with distinct folklores and capitals;
+    a 12-round mixed-difficulty game runs clean.
+[34] Fog now gates MOVEMENT and TARGETING, identically for players and CPUs (playtest, 2026-07-28).
+    (a) You could walk into ground you had never seen — reachable() had no fog test at all. Noticed
+    on a raft, but it was never a water bug: any unit with more than one move point could path into
+    unexplored tiles, and it would have got worse with every longer-legged unit added. One gate at
+    the top of reachable()'s neighbour loop, placed FIRST so it also covers the raft branch, the
+    embark step and the one-step guarantee, all three of which handed out unseen tiles. Keyed on
+    p.revealed (ever seen), not p.visible — remembered ground gone dark again is still a legal
+    destination, which is what makes this a fog rule rather than a leash. Both the player path and
+    aiMoveUnit() call reachable(), so CPUs inherit it rather than needing a parallel check that
+    could drift. A unit can never box itself in: it lights its own 3x3, so its ring is always legal.
+    (b) CPU-vs-player parity audit found a second, unreported divergence. The fog filter on
+    attacking lived in visibleTargets() on the PLAYER side only, while aiMoveUnit() called the
+    unfiltered targetsFor() — so a CPU could strike a unit standing on a tile it had never seen,
+    and the identical unit in your hands could not. Measured on a matched Crone pair at range 2:
+    CPU yes, player no. The gate now lives inside targetsFor() keyed on the unit's OWN owner, and
+    visibleTargets() is a pass-through. aiMoveUnit also gained the recomputeVision() after moving
+    that doMove() has always done for the player — without it the post-move dash check would read a
+    stale fog set and wrongly deny a legitimate strike.
+    Verified: raft with 3 move points no longer reaches an unseen lane; remembered-but-dark ground
+    still offered; unit never boxed in. Soak over 6 games / 66 rounds / 626 reachable() calls —
+    7,200 tiles offered, 0 unrevealed, 0 units standing on unseen ground. Targeting: the asymmetry
+    is gone (both now refuse), a visible target is still hittable by both (no over-correction),
+    melee unaffected, and 157 AI attacks across 5 games included 0 against an unseen target.
+[35] Turn economy rewritten (design ruling 2026-07-28) — this REVERSES [19] and supersedes the
+    authoring guide's "move OR attack, never both" balance anchor. The rule is ordered, not
+    exclusive: moving no longer costs you the attack, but attacking commits you where you stand.
+    `dash` is the sole exception and its meaning INVERTS — it no longer means "may attack after
+    moving" (everyone can now), it means "may still MOVE after attacking". No unit carries it
+    today; it is a power-budget item for a future character.
+    Two shared predicates, canMoveNow(u) / canAttackNow(u), are the single definition of the rule
+    and are used by selectUnit, doMove, doAttack, aiMoveUnit and aiSimAttack alike, so the player
+    and CPU halves cannot drift the way they did before [19]. aiMoveUnit's post-move strike is no
+    longer dash-gated; it still attacks first when a target is already in reach, since moving
+    could only walk it out of range.
+    doMove deliberately no longer sets u.acted when nothing is in reach — an ally moving later can
+    light a target, and marking the unit done would deny an attack the new rule allows. canAct()
+    (the gold ring) therefore had to get stricter instead: it now asks whether a target actually
+    exists, or every moved unit would glow all turn and the ring would stop meaning anything.
+    That puts a targetsFor() call in the draw loop — measured at 0.06us per call, 0.001ms per
+    frame for 21 units, whole frame 1.21ms against a 16.7ms budget.
+    Verified: move→attack allowed (after moving: movesLeft 0, attacked false, 1 target offered,
+    re-select gives 1 attack and 0 move tiles); attack→move denied (acted, movesLeft 0);
+    dash:true attack→move permitted (movesLeft 1, not acted). AI soak, 6 games/20 rounds: 214
+    attacks of which 75 were move-then-attack (the new capability in use) and 0 were
+    attack-then-move without dash.
+    Balance note: I predicted "noticeably bloodier" and the measurement does not support that for
+    the CPU — AI attacks per round went 1.74 to 1.78. The real gain is on the human side, where
+    the pattern will be used deliberately rather than by a two-rule AI.
+[36] §7.3 level-up rewards are queued, the reward modal is locked, and 📖 Lore is now 🌳 Research
+    Tree (the tree modal title too; "Ancestral Lore" and the branch names stay — spec §10 terms).
+    The reported symptom ("the choices sometimes turn up a turn late") was worse than reported:
+    they were being LOST. addListeners can carry a city up several levels in one call and several
+    cities can level in one turn, and each called openModal directly — so every modal but the last
+    was overwritten before it could be answered. Measured before: 3 levels gained, 3 modals opened,
+    1 answerable. Two of the three rewards silently vanished.
+    Fixed with G.rewardQueue, drained one at a time, and re-drained on modal close, on curtain
+    dismiss (hot-seat: hold until the right eyes are on the screen) and at startPlayerTurn — so a
+    reward that could not be shown when it was earned is now presented BEFORE you can act, which
+    is the behaviour the report asked for. The queue skips entries belonging to another seat, drops
+    entries whose city has since been captured or eliminated, and serialises, so an unanswered
+    reward survives a save or an online handoff.
+    Queueing then exposed a second fault: the ladder ROW was read off city.level when the card was
+    finally shown, not when the level was earned. A city climbing 1→4 in one call offered the
+    level-2 row, then the level-4 row TWICE, skipping level 3's rung entirely. The queue therefore
+    stores {city, level} and each rung is served from its own level. Verified: 1→4 now yields
+    exactly level 2 (income/unit/scout) → level 3 (lore/Kindle/income) → level 4
+    (Wellspring/Shrine/Wall), in order, once each, queue empty afterwards.
+    Modal locking: openModal(...,locked) hides the × and closeModal() refuses backdrop/× dismissal
+    until the choice is made — tapping outside used to throw the reward away with no way back.
+    Verified locked modal survives both a backdrop click and a × click, the × is hidden, the lock
+    clears once answered, and ordinary modals still close normally.
+[37] First contact (new rule, 2026-07-28). The first time your folklore lays eyes on a rival — one
+    of their characters, or ANY tile inside their borders, anywhere on the map — you gain Influence.
+    Curve is GROWTH by explicit ruling: a later contact is worth more, so the pressure to keep
+    scouts alive runs the whole match instead of expiring in the opening. The decay alternative was
+    offered and declined. bonus = max(3, round(seats + 0.6*turn)); FC_PER_SEAT / FC_PER_TURN /
+    FC_MIN are tuning knobs. Measured: 4 seats → 5/7/16/28 at turns 1/5/20/40; 10 seats →
+    11/13/22/34. The seats term makes a crowded board worth more in total than a duel.
+    Per OBSERVER, never mutual: seeing them pays you, being seen pays them. Verified with a Crone
+    (vision 2) two tiles from a Wanderer (vision 1) — she met him, he did not meet her.
+    Detection hangs off recomputeVision, so every path that changes sight (move, attack,
+    retaliation, Kindle, capture, turn start) feeds it without its own hook. Early-outs once a
+    player has met everyone, so late-game cost is a length check.
+    Neutral villages do not count (owner<0). Wildcalling-hidden units do not count even when their
+    tile is lit — verified 0 gain against a lurker inside a Crone's sight radius, and 10 once she
+    stood adjacent and it became visible.
+    Save: `met` is a plain array on the player and rides the existing spread. restoreState seeds it
+    SILENTLY for pre-[37] blobs from what each seat can currently see — leaving it empty would have
+    paid a resumed save a retroactive bounty for every rival it had already found (up to 9 at once).
+    Verified: influence unchanged across a legacy restore.
+    Soak, 12 games at 2/4/10 seats: nobody ever exceeded seats-1 contacts; whole-game first-contact
+    income averaged 10-12 per seat at 2 seats, 8-23 at 4, 5-36 at 10. Against a +2/turn baseline
+    that is a real windfall without being decisive — but it is the biggest single lever added so
+    far, so treat FC_PER_TURN as the first knob to reach for if games start feeling swingy.
+[38] Multiplayer pane + a device-local ROOM LIST, which fixed a real [21] limitation found while
+    building it: credentials lived in one localStorage slot, so hosting or joining a second room
+    silently destroyed the first room's token and locked you out of it permanently. Now
+    toltales_rooms_v1 holds a list (newest first, MAX_ROOMS=6), upserted by code so re-entering a
+    room refreshes its token rather than duplicating the row. The pre-[38] single-room key is
+    folded in once at load and then removed, so an existing session keeps its room.
+    Each row shows the code, whether you host or joined, a Rejoin and a Forget. rejoinRoom(code)
+    takes a specific room; its two failure paths now forget BY CODE, since MP.code is not yet set
+    when a rejoin is rejected. The standalone "Rejoin room ####" button is gone, replaced by the
+    rows. Still client-only — /api/state already resolves token→seat, so no Pages Function change.
+    Scope note: this is option (a), rooms THIS DEVICE knows. There is no discovery endpoint and
+    that is deliberate — a server-side browser would turn 4-digit codes from friend-game privacy
+    into a public list anyone could walk. The pane says so in plain text rather than leaving a
+    player hunting for a room browser that does not exist.
+    Verified: empty state; three rooms kept where [21] kept one; newest-first ordering; re-hosting
+    an existing code updates the token in place without duplicating (and moves it to the front);
+    forgetting one row leaves the others; the 6-room cap holds against 10 inserts; migration from
+    the old key lands the room and clears the key; no console errors; a full game still boots and
+    plays through the new menu.
+[39] Settings / Stats / Lore — the menu is finished.
+    SETTINGS. AI_STEP_MS, SCOUT_STEP_MS and TAP_SLOP_TOUCH are gone as consts; SET is now the
+    single source (toltales_settings_v1). This is the point of the pane: all three shipped
+    UNVERIFIED against real hardware and had to be retuned blind on written feedback twice. They
+    are now adjustable on the device in seconds. Enemy turn speed and Scout walk speed both offer
+    Instant, which short-circuits the pacing entirely (aiStep 0 skips the sleep; scoutStep 0 takes
+    scoutPath's existing instant-resolve branch, so the fog debt is paid the same way).
+    Deliberately EXCLUDED: costs, curves, army caps — anything balance. A playtest report is
+    worthless if the reporter could have changed the numbers, and the pane says so in plain text.
+    Also fixed while testing: pointerdown called setPointerCapture unguarded, and a throw there
+    aborted the whole handler, leaving downPos and tapSlop unset and the next drag mis-anchored.
+    [24] hit this with synthetic pointers and worked around it in the test; it is a real fragility
+    on any device where capture fails, so it is now in a try/catch. Capture is an optimisation.
+    STATS. One row per finished telling in toltales_history_v1 — its OWN key, so it can never leak
+    into a save or the §14 netcode blob. §8.5's "no cross-match persistence" governs characters,
+    not a results log. Row carries date, House, folklore, world, size, seats, difficulty, mode,
+    result, score, turns and peak city level; the last three are the ones that actually tell you
+    whether a tuning pass worked. Header summarises count, win rate, average length and score.
+    Capped at 50, clearable.
+    LORE. LORE[] is an EMPTY table for prose written offline — nothing invented here. Until it has
+    entries the pane renders from data the game already holds (playable folklores, the roster with
+    statlines, the worlds), so it is useful immediately without putting words in the world's mouth.
+    Written entries render above these, grouped by category.
+    Verified: defaults load; changing a setting updates its caption, persists, and survives a
+    reload; scoutStep 0 resolves with no walker and still pays the full reveal; tapSlop 8/14/22 all
+    reach the live handler with mouse still pinned at 6; forecast off strikes on the FIRST tap,
+    forecast on arms then commits; a finished match records and renders; Lore shows 3 sections /
+    5 cards with an empty LORE table; no console errors.
+[40] §10.2 PER-FOLKLORE LOOKUPS — the engine change folklore #2 was blocked on (§18.3's "single
+    biggest change waiting"). All three, done additively so nothing authored against the current
+    schema is invalidated.
+    SHAPE. TECHS goes back to the 20 SHARED slots — Wayshrines and Festival are restored, because
+    the Lantern Court's variants had been pasted over them in place and there was no shared node
+    left to vary FROM. Variants now live in FOLKLORE_TECHS[folklore][slot] and are merged over the
+    shared node at read time by nodeFor(pid,slot). branch/tier/req are always taken from TECHS and
+    cannot be overridden: a variant replaces a node IN PLACE, it can never move or add one.
+    p.techs stores SLOT ids only, so a save never depends on which folklore you were.
+    THE LOAD-BEARING RULE: variant effects hang off FLAGS ON THE RESOLVED NODE, never on its id.
+    The Monument's healing is now `nodeFor(pid,"festival").heal`, not a check for "bonfire_moot" —
+    which is what lets a second folklore drop a different Festival variant into the same slot with
+    no rules change. Wayshrines' connected-city +1 Listener moved to the SHARED node, where §10.1
+    always said it lived; Lantern Roads keeps it and adds the Crone, exactly as §11 describes.
+    LOOKUP 2: UNITS gained the `folklore` key §8.1 always specified. affordableUnits and the city
+    TRAIN panel iterate rosterOfPlayer(), not every unit in the game. The nine mirrors have no
+    roster of their own and fall back to the Lantern Court's — the same placeholder status they
+    hold everywhere else; give a mirror units and it stops falling back.
+    LOOKUP 3: Storyteller offers draw the unit from the NAMED folklore's roster. `folk` and `unit`
+    used to be independent picks, so a card could offer a Lantern Court character while claiming to
+    be a tale of the Ash Rede — invisible while all ten share a roster, wrong the moment one does
+    not. Verified all 9 offers on a Booklands map came from their own folklore's roster.
+    Buildings: a variant may rename the building its slot grants (Monument → Bonfire Moot) via
+    buildingInfo(); city[key] and scoring stay keyed on the shared building id.
+    Save migration: pre-[40] blobs hold lantern_roads/bonfire_moot where slot ids now live and are
+    remapped on restore, or the owner would silently lose the node.
+    VERIFIED BY BUILDING A THROWAWAY FOLKLORE #2 IN MEMORY, DATA ONLY, NO RULES CODE TOUCHED: own
+    two-unit roster, two flame nodes in slots the Lantern Court does not use. Result — rosters
+    stay separate in both directions (it cannot field the Crone, the Court cannot field its units),
+    the same slot resolves three ways (Currents/Tidesong, Festival/Bonfire Moot/Chorus Stone with
+    heal 0/3/1), its flame node unlocks its own character, its building is renamed, and a 9-round
+    mixed-folklore game ran with 0 errors. Tree still 20 slots; branch/tier/req identical across
+    folklores. Legacy save remaps and the Crone/heal/Monument all still fire; clean round-trip
+    unchanged.
 -->
 <style>
   :root{
@@ -168,7 +647,71 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
   .seg button{border:0;background:transparent;color:var(--muted);font-weight:800;font-size:13px;
     padding:6px 12px;border-radius:8px;cursor:pointer}
   .seg button.on{background:var(--accent);color:#241500}
-  .folks{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin:6px 0 14px}
+  /* auto-fit: reads as one banner card while a single folklore is playable, flows to a grid as more land */
+  /* ---- main menu ([32]): panes swap inside the start-screen modal, one visible at a time ---- */
+  .pane{display:none}
+  .pane.on{display:block}
+  .paneHead{display:flex;align-items:center;gap:10px;margin:0 0 14px}
+  .paneHead h2{margin:0;font-size:20px;flex:1;text-align:left}
+  .paneHead .btn{padding:6px 13px;font-size:17px;line-height:1}
+  .mbtn{display:flex;align-items:center;gap:13px;width:100%;text-align:left;margin-bottom:10px;
+    padding:15px 16px;border-radius:15px;cursor:pointer;color:var(--ink);
+    background:linear-gradient(180deg,var(--panel2),var(--panel));border:1px solid var(--line);
+    box-shadow:0 3px 14px rgba(0,0,0,.35);transition:transform .05s ease,border-color .15s}
+  .mbtn:hover{border-color:var(--accent)}
+  .mbtn:active{transform:translateY(1px)}
+  .mbtn:disabled{opacity:.38;cursor:default;box-shadow:none}
+  .mbtn:disabled:hover{border-color:var(--line)}
+  .mbtn .ic{font-size:25px;line-height:1;width:30px;text-align:center;flex:none}
+  .mbtn .tx{flex:1;min-width:0}
+  .mbtn .lb{font-weight:800;font-size:16px;letter-spacing:.2px}
+  .mbtn .sb{font-size:12px;color:var(--muted);margin-top:2px}
+  .mbtn .go{color:var(--accent);font-size:19px;flex:none}
+  .mbar{display:flex;gap:8px;margin-top:16px;padding-top:13px;border-top:1px solid var(--line)}
+  .mbar button{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;padding:9px 4px;
+    background:transparent;border:1px solid transparent;border-radius:12px;color:var(--muted);
+    font-weight:700;font-size:11px;cursor:pointer;font-family:inherit}
+  .mbar button:hover{background:var(--panel2);color:var(--ink)}
+  .mbar button b{font-size:19px;font-weight:400;line-height:1}
+  .paneNote{color:var(--muted);font-size:13px;line-height:1.5;text-align:left}
+  /* ---- New Game pane ([33]) ---- */
+  .grp{font-weight:800;color:var(--accent2);font-size:11px;letter-spacing:1.3px;margin:20px 0 8px;text-align:left}
+  .cap{color:var(--muted);font-size:12px;line-height:1.45;margin:-4px 0 10px;padding:0 4px;text-align:left}
+  /* Option rows SWIPE instead of wrapping to three ragged lines on a phone. One line, scrolled. */
+  .seg{overflow-x:auto;scrollbar-width:none;-ms-overflow-style:none;scroll-snap-type:x proximity}
+  .seg::-webkit-scrollbar{display:none}
+  .seg button{flex:none;scroll-snap-align:center;white-space:nowrap}
+  .seg2 button{display:flex;flex-direction:column;align-items:center;gap:1px;padding:5px 12px}
+  .seg2 button i{font-style:normal;font-size:10px;opacity:.72;font-weight:600}
+  .rival{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:8px 10px;margin:6px 0}
+  .rival .dot{width:11px;height:11px;border-radius:50%;flex:none;box-shadow:0 0 0 2px rgba(0,0,0,.3)}
+  .rival .n{font-size:11px;color:var(--muted);font-weight:800;width:16px;flex:none;text-align:left}
+  .rival select{flex:1;min-width:0;background:#0d1116;color:var(--ink);border:1px solid var(--line);
+    border-radius:8px;padding:6px 7px;font-size:12px;font-family:inherit;font-weight:700}
+  .rivalHead{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:10px 12px;margin:6px 0}
+  .rivalHead .sum{flex:1;min-width:0;font-size:12px;color:var(--muted);text-align:left}
+  .rivalHead .btn{padding:6px 10px;font-size:12px}
+  .roomRow{display:flex;align-items:center;gap:8px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:12px;padding:8px 10px;margin:6px 0}
+  .roomRow .rc{font-size:17px;font-weight:800;color:var(--gold);letter-spacing:2px;flex:none}
+  .roomRow .rl{flex:1;min-width:0;font-size:11px;color:var(--muted);text-align:left}
+  .roomRow .btn{padding:6px 10px;font-size:12px}
+  .roomRow .rx{padding:6px 9px;color:var(--muted)}
+  .histRow{display:flex;align-items:center;gap:9px;background:var(--panel2);border:1px solid var(--line);
+    border-radius:11px;padding:8px 10px;margin:5px 0;text-align:left}
+  .histRow .hr{font-size:13px;flex:none;width:14px}
+  .histRow .hr.won{color:var(--good)} .histRow .hr.lost{color:var(--bad)} .histRow .hr.ended{color:var(--muted)}
+  .histRow .ht{flex:1;min-width:0}
+  .histRow .ht b{display:block;font-size:13px}
+  .histRow .ht i,.histRow .hs i{display:block;font-style:normal;font-size:10.5px;color:var(--muted)}
+  .histRow .hs{flex:none;text-align:right;font-weight:800;font-size:13px;color:var(--gold)}
+  .loreCard{background:var(--panel2);border:1px solid var(--line);border-radius:12px;
+    padding:10px 12px;margin:6px 0;text-align:left}
+  .loreCard b{font-size:14px}
+  .loreCard p{margin:4px 0 0;font-size:12px;line-height:1.5;color:var(--muted)}
+  .folks{display:grid;grid-template-columns:repeat(auto-fit,minmax(96px,1fr));gap:8px;margin:6px 0 14px}
   .folk{border:2px solid var(--line);border-radius:12px;padding:9px 6px;cursor:pointer;text-align:center}
   .folk.on{border-color:var(--accent)}
   .folk .dot{width:22px;height:22px;border-radius:6px;margin:0 auto 5px}
@@ -187,7 +730,22 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
   @keyframes pop{from{opacity:0;transform:translateY(-8px)}to{opacity:1;transform:none}}
   .help li{margin:6px 0;font-size:13px;line-height:1.5}
   .kbd{background:#0d1116;border:1px solid var(--line);border-radius:6px;padding:1px 6px;font-size:11px}
-  @media (max-width:480px){ #ctxcard{max-width:200px} .center h1{font-size:30px} }
+  /* ---- phone layout (~380px): no control may render past the screen edge ---- */
+  @media (max-width:480px){
+    #ctxcard{max-width:200px} .center h1{font-size:30px}
+    /* #hud was nowrap: in an online match ☰ sat 154px past a 380px edge, unreachable */
+    #hud{flex-wrap:wrap;row-gap:6px}
+    #hud .badge{padding:6px 9px;font-size:13px;gap:5px}
+    #hud .btn{padding:7px 10px;font-size:13px}
+    .grow{flex:1 1 0;min-width:0}
+    #toast{top:98px}                    /* clears a two-row HUD */
+    /* setup rows: long option sets wrap under their label instead of overflowing */
+    .field{flex-wrap:wrap;row-gap:8px}
+    /* was flex-wrap:wrap — long option sets now scroll on one line ([33]) rather than stacking */
+    .seg{flex-wrap:nowrap;width:100%}
+    /* the action bar can wrap to two rows — keep the card and zoom above it */
+    #ctxcard,#zoom{bottom:104px}
+  }
 </style>
 </head>
 <body>
@@ -199,7 +757,7 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
   <div class="badge"><b id="hudFolkName">—</b></div>
   <div class="badge" id="hudRoom" style="display:none">🔑 <b id="hudRoomCode" class="mono">—</b></div>
   <div class="badge"><span class="star">📜</span><b id="hudInfluence" class="mono">0</b><small id="hudInc">+0/t</small></div>
-  <button class="btn" id="btnTech">📖 Lore</button>
+  <button class="btn" id="btnTech">🌳 Research Tree</button>
   <div class="grow"></div>
   <button class="btn" id="btnHelp">?</button>
   <button class="btn" id="btnMenu">☰</button>
@@ -246,40 +804,113 @@ TOLTALES — build log (base engine: Tinytopia prototype, github.com/talesoflos-
 <!-- start screen -->
 <div class="scrim on" id="startScreen">
   <div class="modal">
-    <div class="mbody center">
-      <h1>TOLTALES</h1>
-      <p class="sub">A pocket-sized, turn-based 4X of rival folklores. Explore, expand, research, conquer.</p>
+    <div class="mbody">
+
+    <!-- ===== MAIN ===== -->
+    <section class="pane on" id="paneMain">
+      <div class="center" style="margin:0 auto 4px">
+        <h1>TOLTALES</h1>
+        <p class="sub">A pocket-sized 4X of rival folklores.<br>Explore, expand, research, conquer.</p>
+      </div>
+      <button class="mbtn" data-go="paneNew">
+        <span class="ic">🕯️</span><span class="tx"><div class="lb">New Game</div>
+        <div class="sb">Found a folklore and begin a telling</div></span><span class="go">›</span></button>
+      <button class="mbtn" id="btnContinue">
+        <span class="ic">📖</span><span class="tx"><div class="lb">Resume Game</div>
+        <div class="sb" id="resumeSub">No telling in progress</div></span><span class="go">›</span></button>
+      <button class="mbtn" data-go="paneMP">
+        <span class="ic">🌐</span><span class="tx"><div class="lb">Multiplayer</div>
+        <div class="sb">Host a room, or join by code</div></span><span class="go">›</span></button>
+      <div class="mbar">
+        <button data-go="paneSettings"><b>⚙️</b>Settings</button>
+        <button data-go="paneLore"><b>📜</b>Lore</button>
+        <button data-go="paneStats"><b>🏆</b>Stats</button>
+      </div>
+    </section>
+
+    <!-- ===== NEW GAME ===== -->
+    <section class="pane" id="paneNew">
+      <div class="paneHead"><button class="btn" data-go="paneMain">‹</button><h2>New Game</h2></div>
+      <div class="grp" style="margin-top:6px">YOUR TELLING</div>
       <div class="folks" id="folkGrid"></div>
+      <div class="field"><label>Your House</label>
+        <span style="display:flex;gap:6px;align-items:center;flex:1;min-width:0">
+          <input id="houseName" maxlength="14" autocomplete="off" spellcheck="false"
+            style="flex:1;min-width:0;font-size:15px;padding:7px 9px;border-radius:9px;border:1px solid var(--line);background:#0d1116;color:var(--ink)">
+          <button class="btn" id="houseRoll" style="padding:7px 10px" title="Another name">🎲</button>
+        </span></div>
+
+      <div class="grp">THE BOARD</div>
       <div class="field"><label>World</label>
         <div class="seg" id="segWorld">
           <button data-v="heartlands" class="on">Heartlands</button><button data-v="booklands">Booklands</button><button data-v="random">Random</button>
         </div></div>
+      <div class="cap" id="capWorld"></div>
       <div class="field"><label>Map size</label>
-        <div class="seg" id="segSize">
-          <button data-v="9">Tiny</button><button data-v="12" class="on">Small</button><button data-v="16">Large</button>
+        <div class="seg seg2" id="segSize">
+          <button data-v="9"><b>Tiny</b><i>81 tiles</i></button><button data-v="12" class="on"><b>Small</b><i>144 tiles</i></button><button data-v="16"><b>Large</b><i>256 tiles</i></button><button data-v="18"><b>Huge</b><i>324 tiles</i></button><button data-v="21"><b>Vast</b><i>441 tiles</i></button>
         </div></div>
+      <div class="cap" id="capSize"></div>
+
+      <div class="grp">THE TABLE</div>
       <div class="field"><label>Humans</label>
         <div class="seg" id="segHumans">
           <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button>
         </div></div>
       <div class="field"><label>CPU rivals</label>
         <div class="seg" id="segAI">
-          <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button>
+          <button data-v="1" class="on">1</button><button data-v="2">2</button><button data-v="3">3</button><button data-v="4">4</button><button data-v="5">5</button><button data-v="6">6</button><button data-v="7">7</button><button data-v="8">8</button><button data-v="9">9</button>
         </div></div>
+      <div id="rivalBox"></div>
+
+      <div class="grp">THE RULES</div>
       <div class="field"><label>Mode</label>
         <div class="seg" id="segMode">
-          <button data-v="dom" class="on">Domination</button><button data-v="score">Score (30t)</button><button data-v="endless">Endless</button>
+          <button data-v="dom" class="on">Domination</button><button data-v="score">Score</button><button data-v="endless">Endless</button>
         </div></div>
+      <div class="cap" id="capMode"></div>
       <div class="field"><label>Difficulty</label>
-        <div class="seg" id="segDiff" style="flex-wrap:wrap">
+        <div class="seg" id="segDiff">
           <button data-v="easy">Easy</button><button data-v="medium" class="on">Medium</button><button data-v="hard">Hard</button><button data-v="crazy">Crazy</button><button data-v="insane">Insane</button>
         </div></div>
-      <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:6px">Found your folklore ▶</button>
-      <div style="display:flex;gap:8px;margin-top:8px">
-        <button class="btn" id="btnHost" style="flex:1">🌐 Host online</button>
-        <button class="btn" id="btnJoin" style="flex:1">🔑 Join a code</button>
-      </div>
-      <button class="btn" id="btnContinue" style="width:100%;margin-top:8px;display:none">Continue saved game</button>
+      <div class="cap" id="capDiff"></div>
+
+      <button class="btn primary" id="btnStart" style="width:100%;padding:13px;font-size:16px;margin-top:10px">Found your folklore ▶</button>
+    </section>
+
+    <!-- ===== MULTIPLAYER ===== -->
+    <section class="pane" id="paneMP">
+      <div class="paneHead"><button class="btn" data-go="paneMain">‹</button><h2>Multiplayer</h2></div>
+      <button class="mbtn" id="btnHost">
+        <span class="ic">🌐</span><span class="tx"><div class="lb">Host a room</div>
+        <div class="sb">You get a 4-digit code to share</div></span><span class="go">›</span></button>
+      <button class="mbtn" id="btnJoin">
+        <span class="ic">🔑</span><span class="tx"><div class="lb">Join by code</div>
+        <div class="sb">Enter a host's 4-digit code</div></span><span class="go">›</span></button>
+      <div style="font-weight:800;color:var(--muted);font-size:12px;margin:16px 0 8px;text-align:left">YOUR ROOMS</div>
+      <div id="mpRooms"></div>
+      <p class="paneNote" style="margin-top:14px">Rooms are listed from this device only — Toltales has no
+        public room browser, so a code from a friend is the only way into someone else's telling.
+        Turns are sequential; you play on your own device when it's your turn.</p>
+    </section>
+
+    <!-- ===== SETTINGS / LORE / STATS (shells — filled in a later step) ===== -->
+    <section class="pane" id="paneSettings">
+      <div class="paneHead"><button class="btn" data-go="paneMain">‹</button><h2>Settings</h2></div>
+      <div id="setBody"></div>
+      <p class="paneNote" style="margin-top:14px">These change how the game presents itself, never how
+        it plays — costs, growth curves and army limits stay fixed so a playtest report always means
+        the same thing.</p>
+    </section>
+    <section class="pane" id="paneLore">
+      <div class="paneHead"><button class="btn" data-go="paneMain">‹</button><h2>Lore</h2></div>
+      <div id="loreBody"></div>
+    </section>
+    <section class="pane" id="paneStats">
+      <div class="paneHead"><button class="btn" data-go="paneMain">‹</button><h2>Stats</h2></div>
+      <div id="statsBody"></div>
+    </section>
+
     </div>
   </div>
 </div>
@@ -316,14 +947,27 @@ const RESOURCE = {
 //   cityDefSig  — Hearthbound: added to the defense multiplier on any city tile
 //   vision      — Farlight: base vision radius (default 1)
 //   storiedRange— range override once the unit is Storied
+//   folklore    — §8.1's roster key, finally honoured. A unit is fieldable only by its own
+//                 folklore; `tech` is now a SLOT id, so a variant in that slot unlocks it.
 const UNITS = {
   wanderer: {name:"Wanderer",      icon:"🚶", cost:2, hp:10, atk:2, def:2, move:1, range:1, tech:null, dash:false,
+             folklore:"lantern_court",
              tagline:"Every road remembers him.",
              sig:"Hearthbound — steadier on any city tile (+0.5 defense multiplier)", cityDefSig:0.5},
-  crone:    {name:"Lantern Crone", icon:"🏮", cost:4, hp:8,  atk:2, def:1, move:1, range:2, tech:"lantern_roads", dash:false,
+  crone:    {name:"Lantern Crone", icon:"🏮", cost:4, hp:8,  atk:2, def:1, move:1, range:2, tech:"wayshrines", dash:false,
+             folklore:"lantern_court",
              tagline:"She sees you before you see her.",
              sig:"Farlight — sees 2 tiles into the dark", vision:2, storiedRange:3},
 };
+/* Which characters a folklore may field (§8.1's `folklore` key). The nine mirrors have no roster
+   of their own, so they fall back to the Lantern Court's — exactly the placeholder status they
+   have everywhere else (§18.1 #8). Give a mirror real units and it stops falling back. */
+const DEFAULT_ROSTER="lantern_court";
+function rosterOf(folkloreId){
+  const own=Object.keys(UNITS).filter(k=>UNITS[k].folklore===folkloreId);
+  return own.length? own : Object.keys(UNITS).filter(k=>UNITS[k].folklore===DEFAULT_ROSTER);
+}
+const rosterOfPlayer=(pid)=> rosterOf(G.players[pid].folklore);
 
 // §10 lore tree: Ancestral Lore hub + four branches, each T1 → fork (Harvest side / Mastery
 // side) → one T3 per T2. 20 shared slots; the Lantern Court replaces Wayshrines→Lantern Roads
@@ -352,9 +996,36 @@ const TECHS = {
   old_roads:     {name:"Old Roads",     branch:"fieldlore",tier:1,req:null,icon:"🌾",blurb:"+1 move when starting a turn on an owned field tile."},
   harvesting:    {name:"Harvesting",    branch:"fieldlore",tier:2,req:"old_roads",icon:"🍎",blurb:"Harvest Fruit from fields (+1 Listener)."},
   hearthward:    {name:"Hearthward",    branch:"fieldlore",tier:3,req:"harvesting",icon:"⛩",blurb:"Build a Shrine-stone — defenders on that city tile +0.5; +1 Influence/turn per level-3+ city.",building:"shrinestone"},
-  lantern_roads: {name:"Lantern Roads", branch:"fieldlore",tier:2,req:"old_roads",icon:"🏮",flame:true,blurb:"Unlocks the Lantern Crone. Owned cities within 4 tiles of another gain +1 Listener/turn."},
-  bonfire_moot:  {name:"Bonfire Moot",  branch:"fieldlore",tier:3,req:"lantern_roads",icon:"🔥",flame:true,blurb:"Build a Bonfire Moot — +250 score, and your units on your city tiles heal 3/turn.",building:"monument"},
+  wayshrines:    {name:"Wayshrines",    branch:"fieldlore",tier:2,req:"old_roads",icon:"🪧",blurb:"Owned cities within 4 tiles of another are connected — each gains +1 Listener/turn."},
+  festival:      {name:"Festival",      branch:"fieldlore",tier:3,req:"wayshrines",icon:"🎆",blurb:"Build a Monument — +250 score.",building:"monument"},
 };
+
+/* §10.2 folklore variants — the per-folklore lookup that folklore #2 was waiting on.
+   SHAPE: FOLKLORE_TECHS[folkloreId][slotId] overrides the SHARED node sitting in that slot.
+   `branch`, `tier` and `req` are always taken from TECHS and can never be overridden — a variant
+   replaces a node IN PLACE (authoring §2.3), it does not move or add one. Everything else (name,
+   icon, blurb, flame, building, and any effect flags) may be overridden or added.
+   p.techs stores SLOT ids only, so a save blob never depends on which folklore you were.
+   EFFECTS HANG OFF FLAGS ON THE RESOLVED NODE, NEVER ON ITS ID — that is what lets a second
+   folklore drop its own variant into the same slot without touching the rules code. */
+const FOLKLORE_TECHS = {
+  lantern_court: {
+    // §11.1 — the shared Wayshrines effect still applies; the variant adds the Crone.
+    wayshrines: {name:"Lantern Roads", icon:"🏮", flame:true,
+      blurb:"Unlocks the Lantern Crone. Owned cities within 4 tiles of another gain +1 Listener/turn."},
+    // §11.2 — the shared Monument still scores; the variant adds the healing.
+    festival:   {name:"Bonfire Moot", icon:"🔥", flame:true, heal:3, buildingName:"Bonfire Moot",
+      blurb:"Build a Bonfire Moot — +250 score, and your units on your city tiles heal 3/turn."},
+  },
+};
+// The effective node for a player: shared slot, with their folklore's variant merged over it.
+function nodeFor(pid,slot){
+  const base=TECHS[slot]; if(!base) return null;
+  const p=G && G.players && G.players[pid];
+  const ov=p && FOLKLORE_TECHS[p.folklore] && FOLKLORE_TECHS[p.folklore][slot];
+  return ov? {...base, ...ov, branch:base.branch, tier:base.tier, req:base.req} : base;
+}
+const hasTech=(pid,slot)=> !!(G.players[pid] && G.players[pid].techs.has(slot));
 const BRANCHES={ stonelore:{angle:-90}, deeplore:{angle:0}, fieldlore:{angle:90}, woodlore:{angle:180} };
 // §10.1 T3 buildings: tile-less, bought per city once researched. Cost is a tuning knob —
 // the spec defines no build flow, so this minimal purchase is the slice interpretation.
@@ -363,23 +1034,98 @@ const BUILDINGS={
   watchcairn: {name:"Watch-cairn", icon:"🗼", tech:"peakward",    desc:"+1 vision radius for this city"},
   lodge:      {name:"Lodge",       icon:"🏕", tech:"groveward",   desc:"+1 Influence/turn"},
   shrinestone:{name:"Shrine-stone",icon:"⛩", tech:"hearthward",  desc:"Defenders on this city tile +0.5"},
-  monument:   {name:"Bonfire Moot",icon:"🔥", tech:"bonfire_moot",desc:"+250 score; your units on your city tiles heal 3/turn"},
+  monument:   {name:"Monument",    icon:"🎆", tech:"festival",    desc:"+250 score"},
 };
+// A folklore's variant may rename/redescribe the building its slot grants (Monument → Bonfire
+// Moot). Display only; `city[key]` and the scoring stay keyed on the shared building id.
+function buildingInfo(pid,key){
+  const b=BUILDINGS[key];
+  const n=nodeFor(pid,b.tech)||{};
+  return {...b, name:n.buildingName||b.name, icon:n.icon||b.icon, desc:n.buildingDesc||n.blurb||b.desc};
+}
 const BUILD_COST=5;
 
-// One real folklore (§11: The Lantern Court, ember-orange); the others are clearly-marked
-// placeholder rivals that mirror the same roster, for CPUs, until folklores #2–4 are designed.
+// playable:true = offered on the folklore picker. Only real folklores are choosable (§11: The
+// Lantern Court, ember-orange); the rest are an auto-assign pool of name+accent for CPUs and for
+// humans 2–4, mirroring the LC roster until real folklores are designed. Ten entries = §2's
+// 2–10 players-in-play cap. Accents are throwaway; curate real ones per authoring §2.1.
 const FOLKLORES = [
-  {id:"lantern_court", name:"Lantern Court", color:"#ff9138", tagline:"the fireside telling"},
+  {id:"lantern_court", name:"Lantern Court", color:"#ff9138", tagline:"the fireside telling", playable:true},
   {id:"moss_choir",    name:"Moss Choir",    color:"#3fbf9f", tagline:"rival telling (mirror)"},
   {id:"salt_chorus",   name:"Salt Chorus",   color:"#7fb2e5", tagline:"rival telling (mirror)"},
   {id:"hollow_chant",  name:"Hollow Chant",  color:"#a06cd5", tagline:"rival telling (mirror)"},
+  {id:"ash_rede",      name:"Ash Rede",      color:"#d43a68", tagline:"rival telling (mirror)"},
+  {id:"amber_verse",   name:"Amber Verse",   color:"#c2ad70", tagline:"rival telling (mirror)"},
+  {id:"fern_psalm",    name:"Fern Psalm",    color:"#b5d43a", tagline:"rival telling (mirror)"},
+  {id:"bramble_ode",   name:"Bramble Ode",   color:"#3ad468", tagline:"rival telling (mirror)"},
+  {id:"heath_ballad",  name:"Heath Ballad",  color:"#ae593d", tagline:"rival telling (mirror)"},
+  {id:"dusk_litany",   name:"Dusk Litany",   color:"#d43aa6", tagline:"rival telling (mirror)"},
 ];
+const MAX_SEATS = 10;   // §2: 2–10 folklores in play, humans + CPUs
 
 const CITY_DEF_BONUS = 1.5, WALL_DEF_BONUS = 4.0;
 // §13 difficulty = CPU economy cheat, not smarter code; §12 Score mode turn limit is tuning
 const DIFFICULTY={ easy:{bonus:1}, medium:{bonus:2}, hard:{bonus:3}, crazy:{bonus:5}, insane:{bonus:7, freeTech:1} };
+// §13 amended (§18.8): a rival may carry its OWN difficulty; p.diff===null means "use the match
+// default". Every difficulty read goes through here so the two can never drift apart.
+const playerDiff=(p)=> DIFFICULTY[(p&&p.diff)||G.diff||"medium"] || DIFFICULTY.medium;
 const SCORE_TURN_LIMIT=30;
+// §11 Kindle charge economy (tuning). §8.4 grants a charge per Storied promotion, which
+// stockpiled badly: every unit that ever lands a kill mints one, and every folklore currently
+// mirrors the Lantern Court. One charge per N promotions, hard-capped, keeps the flavour.
+const KINDLE_CAP=3, KINDLE_PER_STORIED=2;
+
+/* ---- player settings ([39]) -------------------------------------------------
+   Presentation and pacing only. Deliberately NOT balance: costs, curves and army caps stay in the
+   code, because a playtest report is worthless if the reporter could have changed the numbers.
+   These were hard-coded consts that had to be retuned blind on written feedback — AI_STEP_MS and
+   SCOUT_STEP_MS both shipped unverified against real hardware. SET is now the single source and
+   this file no longer declares them separately. */
+const SETTINGS_KEY="toltales_settings_v1";
+const SETTINGS_DEFAULTS={ aiStep:420, scoutStep:300, tapSlop:14, forecast:true, gauge:true };
+let SET={...SETTINGS_DEFAULTS};
+function loadSettings(){
+  try{ const s=JSON.parse(localStorage.getItem(SETTINGS_KEY));
+       if(s && typeof s==="object") SET={...SETTINGS_DEFAULTS, ...s}; }catch(e){}
+}
+function saveSettings(){ try{ localStorage.setItem(SETTINGS_KEY, JSON.stringify(SET)); }catch(e){} }
+loadSettings();
+
+/* §9/§10 naming. Both pools are PLACEHOLDER CONTENT, marked as such the way the mirror folklores
+   are (authoring §2.1) — swap them wholesale without touching any code.
+   CITY_NAMES: one per settlement. A 21² board tops out near 23 cities, so 100 never collides;
+   the numeric suffix is a backstop, not an expected path. Kept short — these sit in a modal title
+   on a ~380px phone.
+   HOUSE_NAMES: the telling-house that fronts a folklore name ("Emberwake of the Lantern Court").
+   Deliberately disjoint from both CITY_NAMES and the folklore names, so a House never reads as a
+   place or as a rival folklore. */
+const CITY_NAMES=[
+ "Emberfall","Hollowmere","Thornwick","Ashgrove","Larkhollow","Mossgate","Windrow","Briarfell",
+ "Candlerest","Duskmoor","Fernhallow","Gallowmere","Hearthstead","Ivywatch","Kindlebrook",
+ "Lanternhill","Mirebank","Nettleford","Oakenshade","Pinefall","Quillhaven","Rushmere","Sableford",
+ "Tallowick","Umbermoor","Vesperfield","Willowbend","Yarrowgate","Barrowlight","Cinderhollow",
+ "Downhearth","Elmwatch","Foxglade","Greymantle","Harrowfen","Inglenook","Jackdaw","Kestrelmoor",
+ "Loamwood","Marrowdale","Nightfurrow","Ottermarch","Peatgate","Quietwater","Ravensong",
+ "Stormhallow","Thistledown","Underbough","Vellumrest","Whisperford","Amberwold","Bellmire",
+ "Coldhearth","Dovefell","Emberwick","Fallowmoot","Gorsehill","Hazelrook","Ironbark","Jettyfall",
+ "Kelpgate","Longbarrow","Meadwatch","Northreach","Oxhollow","Ploughmere","Quarrylight",
+ "Reedhaven","Saltcrag","Tinderfell","Uplantern","Vinebrook","Wickmoor","Yewshade","Alderfen",
+ "Bramblewatch","Chalkford","Dunmoss","Everhearth","Furrowgate","Glassmere","Hushwood","Inkfall",
+ "Junipergate","Kilnhollow","Lowbarrow","Millrest","Nettlerook","Orchardgate","Palewater",
+ "Quillmoor","Rookfell","Stonecradle","Tanglebrook","Umberfell","Verseholt","Woldmere","Yarnwick",
+ "Ashenmoot","Bellwether"
+];
+const HOUSE_NAMES=[
+ "Emberwake","Nightgale","Sootherald","Ashenveil","Gloamwright","Wickmourn","Palefable","Rimeverse",
+ "Thistlesong","Duskquill","Reedwhistle","Harrowsong","Kindlewright","Lowlantern","Mothlight",
+ "Owlsedge","Pyreknot","Quietbell","Rushlight","Smokeweave","Tallowsong","Underhymn","Vesperknot",
+ "Wanderloom","Yarnkeeper","Barrowsong","Cinderquill","Dimwick","Echofell","Foxfire",
+ "Glimmerthread","Sootchant","Inkwake","Jarrowmoot","Kestrelknot","Lampblack","Marrowsong",
+ "Nettlewake","Oldflame","Pennywhistle","Quillfire","Ravenknot","Brinesong","Tinderchant",
+ "Umbraweave","Vellumhand","Willowchant","Yewsong"
+];
+// §10: a folklore is told by a named House. Display only — no mechanics hang off it.
+const houseOf=(p)=> p.house? `${p.house} of the ${p.name}` : p.name;
 
 // §4 worlds: a recipe + at most one twist. Slice ships Heartlands (standard) + Booklands
 // (twist: storytellers); Warlands/Gloaming/Floodmarch are slice-2 scope. Weights are tuning.
@@ -427,34 +1173,50 @@ function newGame(opts){
     cam:{x:0,y:0,z:1}, mapMode:opts.mode
   };
   // --- players: humans first by folklore pick, CPUs fill in, then §2 randomized turn order ---
-  const humansN=Math.max(1,Math.min(opts.humans||1,FOLKLORES.length));
-  const aiN=Math.max(0,Math.min(opts.ai, FOLKLORES.length-humansN));
+  const seatCap=Math.min(FOLKLORES.length, MAX_SEATS);          // §2: at most 10 folklores in play
+  const humansN=Math.max(1,Math.min(opts.humans||1,seatCap));
+  const aiN=Math.max(0,Math.min(opts.ai, seatCap-humansN));
   const humanFolklore = FOLKLORES.find(t=>t.id===opts.folklore) || FOLKLORES[0];
   const usedFolklores = new Set([humanFolklore.id]);
-  const seats=[{tr:humanFolklore,human:true}];
+  // `you` survives the shuffle below and marks the seat this device is playing, which is the only
+  // one that gets the House name typed on the start screen.
+  const seats=[{tr:humanFolklore,human:true,you:true}];
   for(let i=1;i<humansN;i++){
     const t=FOLKLORES.find(f=>!usedFolklores.has(f.id));
     usedFolklores.add(t.id); seats.push({tr:t,human:true});
   }
+  // §2: CPUs are random unless the host assigns one. rivals[i] may also carry its own difficulty,
+  // which amends §13's "applies to all CPUs" (see §18.8). Both are optional — an unset rival
+  // behaves exactly as before this pass.
+  const rivals=opts.rivals||[];
   for(let i=0;i<aiN;i++){
-    let t; do{ t = pick(FOLKLORES); }while(usedFolklores.has(t.id) && usedFolklores.size < FOLKLORES.length);
-    usedFolklores.add(t.id); seats.push({tr:t,human:false});
+    const want=rivals[i] && rivals[i].folklore && rivals[i].folklore!=="random" ? rivals[i].folklore : null;
+    let t=(want && !usedFolklores.has(want))? FOLKLORES.find(f=>f.id===want) : null;
+    if(!t){ do{ t = pick(FOLKLORES); }while(usedFolklores.has(t.id) && usedFolklores.size < FOLKLORES.length); }
+    usedFolklores.add(t.id);
+    seats.push({tr:t,human:false,diff:(rivals[i] && rivals[i].diff) || null});
   }
   for(let i=seats.length-1;i>0;i--){ const j=ri(i+1); [seats[i],seats[j]]=[seats[j],seats[i]]; }   // §2: luck of the draw
+  // §10: one House per seat, drawn without replacement so no two tellings share a name.
+  const houseBag=HOUSE_NAMES.slice();
+  const takeHouse=()=> houseBag.length? houseBag.splice(ri(houseBag.length),1)[0] : "Wandering";
+  const yourHouse=(opts.house||"").trim().slice(0,14);
+  const dup=houseBag.indexOf(yourHouse);            // typing a pool name must not also hand it to a CPU
+  if(dup>=0) houseBag.splice(dup,1);
   seats.forEach((s,i)=>{
+    const house=(s.you && yourHouse)? yourHouse : takeHouse();
     G.players.push({
-      id:i, folklore:s.tr.id, name:s.tr.name, color:s.tr.color, human:s.human,
-      influence:5, techs:new Set(), income:0, alive:true, revealed:new Set(), visible:new Set(), score:0,
+      id:i, folklore:s.tr.id, name:s.tr.name, house, color:s.tr.color, human:s.human, diff:s.diff||null,
+      influence:5, techs:new Set(), income:0, alive:true, revealed:new Set(), visible:new Set(), score:0, met:[],
       destroyed:0, kindle:1   // §11: every folklore starts with 1 special-move charge
     });
   });
   G.viewer=G.players.find(p=>p.human).id;   // whose fog the screen shows
-  // §13 Insane: CPUs start with 1 extra tech
-  if(DIFFICULTY[G.diff].freeTech){
-    for(const p of G.players) if(!p.human){
-      const pool=Object.keys(TECHS).filter(id=>canResearch(p.id,id));
-      if(pool.length) p.techs.add(pool[ri(pool.length)]);
-    }
+  // §13 Insane: that rival starts with 1 extra lore node. Per-rival now (§18.8) — an Insane rival
+  // in an otherwise Medium match gets it, and only it does.
+  for(const p of G.players) if(!p.human && playerDiff(p).freeTech){
+    const pool=Object.keys(TECHS).filter(id=>canResearch(p.id,id));
+    if(pool.length) p.techs.add(pool[ri(pool.length)]);
   }
   const world=WORLDS[wid];
   genTerrain(world);
@@ -465,7 +1227,7 @@ function newGame(opts){
   if(world.twist==="storytellers") placeStorytellers();   // §4.3 Booklands twist
   recomputeIncome();
   for(const p of G.players) recomputeVision(p.id);
-  centerCameraOn(capitalOf(G.viewer));
+  centerCameraOn(homeView(G.viewer));
   return G;
 }
 
@@ -508,8 +1270,13 @@ function placeStorytellers(){
     const x=ri(G.N), y=ri(G.N), t=tileAt(x,y);
     if(t.t===T.WATER || t.res!==R.NONE || t.lib || t.story || cityAt(x,y)) continue;
     if(G.cities.some(c=>c.capital && cheb(c.x,c.y,x,y)<=2)) continue;
-    const unit=pick(Object.keys(UNITS));
-    t.story={ folk:pick(FOLKLORES).id, unit, price:Math.ceil(UNITS[unit].cost/2) };   // discount = half, rounded up (tuning)
+    // §4.3 lookup #3: the unit is drawn from THAT folklore's roster, not from every unit in the
+    // game. Previously `folk` and `unit` were independent picks, so the card could offer a
+    // Lantern Court character while claiming to be a tale of the Ash Rede — harmless while all
+    // ten share one roster, wrong the moment folklore #2 has units of its own.
+    const folk=pick(FOLKLORES).id;
+    const unit=pick(rosterOf(folk));
+    t.story={ folk, unit, price:Math.ceil(UNITS[unit].cost/2) };   // discount = half, rounded up (tuning)
     placed++;
   }
 }
@@ -536,25 +1303,46 @@ function hasLandNeighbor(x,y){
 
 function placeCapitals(){
   const N=G.N, n=G.players.length;
-  // spread starting spots around the map edges/corners
+  // §2 allows up to 10 folklores, so spots are computed on a ring instead of read from a fixed
+  // table — the old 8-entry corners+edges list wrapped with i%8 and stacked seats 9–10 on top
+  // of capitals 1–2. Angle is drawn from the seeded RNG, so a seed still reproduces its map.
+  const c0=(N-1)/2;
+  const rad=Math.max(2, c0 - Math.max(1,Math.floor(N*0.15)));
+  const a0=rnd()*Math.PI*2;
+  const minSep=Math.max(2, Math.min(5, Math.floor(N*1.1/n)));
   const spots=[];
-  const m=Math.max(1,Math.floor(N*0.18));
-  const corners=[[m,m],[N-1-m,N-1-m],[N-1-m,m],[m,N-1-m]];
-  const edges=[[Math.floor(N/2),m],[Math.floor(N/2),N-1-m],[m,Math.floor(N/2)],[N-1-m,Math.floor(N/2)]];
-  const order = corners.concat(edges);
   for(let i=0;i<n;i++){
-    let [cx,cy]=order[i%order.length];
-    [cx,cy]=findLandNear(cx,cy);
-    spots.push([cx,cy]);
+    const a=a0+(Math.PI*2*i)/n;
+    const bx=Math.max(0,Math.min(N-1,Math.round(c0+Math.cos(a)*rad)));
+    const by=Math.max(0,Math.min(N-1,Math.round(c0+Math.sin(a)*rad)));
+    spots.push(capitalSpot(bx,by,spots,minSep));
   }
   spots.forEach(([cx,cy],i)=>{
-    const t=tileAt(cx,cy); t.t=T.FIELD; t.res=R.NONE;
+    const t=tileAt(cx,cy); t.t=T.FIELD; t.res=R.NONE;        // §7.0: a city is never on water
     // clear a friendly ring
     for(const[dx,dy]of NB8){ if(inb(cx+dx,cy+dy)){ const q=tileAt(cx+dx,cy+dy); if(q.t===T.WATER)q.t=T.FIELD; } }
     const city=makeCity(cx,cy,i,true);
     G.cities.push(city);
-    spawnUnit("wanderer", cx, cy, i);   // §2: 1 copy of the cheapest unit on the capital
+    spawnUnit("wanderer", cx, cy, i, city.id);   // §2: 1 copy of the cheapest unit on the capital
   });
+}
+// Nearest tile to (x,y) that is land and at least minSep from every capital placed so far.
+// Relaxes to "any free land", then "any free tile", so a crowded board still seats all 10.
+function capitalSpot(x,y,taken,minSep){
+  const free=(nx,ny)=>!taken.some(([a,b])=>a===nx&&b===ny);
+  const passes=[
+    (nx,ny)=>tileAt(nx,ny).t!==T.WATER && !taken.some(([a,b])=>cheb(a,b,nx,ny)<minSep),
+    (nx,ny)=>tileAt(nx,ny).t!==T.WATER && free(nx,ny),
+    (nx,ny)=>free(nx,ny),
+  ];
+  for(const ok of passes){
+    if(inb(x,y) && ok(x,y)) return [x,y];
+    for(let r=1;r<G.N;r++) for(const[dx,dy]of ring(r)){
+      const nx=x+dx, ny=y+dy;
+      if(inb(nx,ny) && ok(nx,ny)) return [nx,ny];
+    }
+  }
+  return [x,y];
 }
 function findLandNear(x,y){
   if(inb(x,y)&&tileAt(x,y).t!==T.WATER) return [x,y];
@@ -581,9 +1369,19 @@ function countVillages(){ return G.cities.filter(c=>c.owner<0).length; }
 function nearAnyCity(x,y,r){ return G.cities.some(c=>Math.max(Math.abs(c.x-x),Math.abs(c.y-y))<=r); }
 
 /* --------------------------------- CITIES -------------------------------- */
+// §9: every settlement gets its own name, drawn without replacement from the placeholder pool.
+// Uses the seeded RNG so a given map seed always names its cities the same way.
+function cityName(){
+  const taken=new Set(G.cities.map(c=>c.name));
+  const free=CITY_NAMES.filter(n=>!taken.has(n));
+  if(free.length) return free[ri(free.length)];
+  return CITY_NAMES[ri(CITY_NAMES.length)]+" "+(G.cities.length+1);   // backstop; 100 names vs ~23 cities
+}
+// Legacy blobs and any hand-built city fall back to the generic word rather than showing blank.
+const cityLabel=(c)=> c.name || (c.owner<0? "Village" : "City");
 function makeCity(x,y,owner,capital){
   const c={ x,y, owner, capital, level: capital?1:0, listeners:0, wall:false, income:0,
-            territory:[], id:G.nextUid++ };
+            territory:[], id:G.nextUid++, name:cityName() };
   computeTerritory(c);
   return c;
 }
@@ -604,12 +1402,25 @@ function computeTerritory(c){
 }
 const cityAt=(x,y)=> G.cities.find(c=>c.x===x&&c.y===y);
 const capitalOf=(pid)=> G.cities.find(c=>c.owner===pid&&c.capital);
+// Where to point the camera for a player. Once a capital can be lost for good ([30]), capitalOf()
+// legitimately returns undefined while you still hold cities — centerCameraOn guards against that
+// and silently does nothing, so "Centre on capital" just ignored you. Fall back to any city, then
+// to any surviving unit.
+function homeView(pid){
+  return capitalOf(pid) || G.cities.find(c=>c.owner===pid) || G.units.find(u=>u.owner===pid);
+}
 
 /* --------------------------------- UNITS --------------------------------- */
-function spawnUnit(type,x,y,owner){
+// §7.2 per-city capacity: `home` is the city that produced this unit and is what its owner's
+// training slots are counted against. Every caller passes it explicitly; the fallback derives it
+// from an owned city on the spawn tile (training, capital start) so a missed caller attaches to
+// something real rather than silently becoming an uncapped free unit.
+function spawnUnit(type,x,y,owner,home){
   const def=UNITS[type];
+  const here=cityAt(x,y);
   const u={ uid:G.nextUid++, type, owner, x, y, hp:def.hp, maxhp:def.hp,
-            movesLeft:def.move, acted:false, storied:false };
+            movesLeft:def.move, acted:false, storied:false,
+            home:(home!==undefined)? home : ((here && here.owner===owner)? here.id : null) };
   G.units.push(u);
   return u;
 }
@@ -653,6 +1464,13 @@ function reachable(u){
       if(!inb(nx,ny)) continue;
       const tt=tileAt(nx,ny);
       const key=idx(nx,ny);
+      // You cannot walk into ground you have never laid eyes on (ruling 2026-07-28). This gate is
+      // deliberately FIRST, so it also covers the raft branch, the embark step and the one-step
+      // guarantee below — all three used to hand out unseen tiles. p.revealed, not p.visible:
+      // remembered ground that has gone dark again is still a legal destination.
+      // Placed in reachable() on purpose — aiMoveUnit() paths through the same function, so CPUs
+      // inherit the restriction rather than needing a parallel check that could drift.
+      if(!p.revealed.has(key)) continue;
       const other=unitAt(nx,ny);
       if(other) continue;                                // can't move through/into occupied
       if(tt.t===T.WATER){
@@ -716,12 +1534,20 @@ function updateRaftState(u){
   else if(!onWater && u.raft){ u.raft=false; }   // §8.3 disembark: true stats restored, hp carries
 }
 // Attack targets in range (measured from current position; ranged don't need adjacency)
+// You may only strike what your folklore can actually see. The fog gate lives HERE, keyed on the
+// unit's own owner, so the player path and aiMoveUnit() get the identical rule — it used to sit
+// only in visibleTargets() on the player side, which meant a CPU could shoot a target standing on
+// a tile it had never laid eyes on while the same unit in your hands could not (measured: an
+// identical Crone pair at range 2, CPU yes / player no). Ruling 2026-07-28: engine rules are
+// universal, exceptions are granted explicitly and per-side.
 function targetsFor(u){
   const out=[];
   if(u.raft && !G.players[u.owner].techs.has("tidecall")) return out;   // §8.3: rafts can't attack until Tidecall
+  const seen=G.players[u.owner].visible;
   for(const e of G.units){
     if(e.owner===u.owner) continue;
     if(hiddenFrom(e,u.owner)) continue;                  // Wildcalling
+    if(!seen.has(idx(e.x,e.y))) continue;                // fog gate — same for players and CPUs
     if(cheb(u.x,u.y,e.x,e.y)<=unitRange(u)) out.push(e);
   }
   return out;
@@ -736,6 +1562,45 @@ function recomputeVision(pid){
   for(const u of G.units) if(u.owner===pid){ const onMtn=tileAt(u.x,u.y).t===T.MOUNTAIN;
     add(u.x,u.y, (UNITS[u.type].vision||1) + (onMtn?1:0)); }   // Farlight (§8.2) + §5 mountain +1
   for(const c of G.cities) if(c.owner===pid){ add(c.x,c.y, 2+(c.watchcairn?1:0)); if(c.explorer) add(c.x,c.y,5); }   // §5 r2 + Watch-cairn
+  checkFirstContact(pid);
+}
+
+/* First contact (ruling 2026-07-28). The first time your folklore lays eyes on a rival — one of
+   their characters, or any tile inside their borders, anywhere on the map — the telling spreads
+   and you gain Influence.
+   GROWTH curve by ruling: a contact made later is worth MORE. The pressure to explore therefore
+   comes from needing living scouts deep into the match rather than from a race in the opening —
+   lose your explorers and you lose access to the remaining bounties entirely.
+   Per observer, not mutual: seeing them pays you; being seen pays them. Wildcalling-hidden units
+   do not count, since you cannot actually see them.
+   Both weights are tuning knobs. The seats term makes a crowded board worth more in total than a
+   duel: at 4 seats ~7 on turn 5, ~16 on turn 20, ~28 on turn 40; at 10 seats ~13 / ~22 / ~34. */
+const FC_PER_SEAT=1, FC_PER_TURN=0.6, FC_MIN=3;
+function firstContactBonus(){
+  return Math.max(FC_MIN, Math.round(FC_PER_SEAT*G.players.length + FC_PER_TURN*G.turn));
+}
+function checkFirstContact(pid,silent){
+  const p=G.players[pid];
+  if(!p || !p.alive) return;
+  p.met = p.met || [];
+  if(p.met.length >= G.players.length-1) return;      // everyone already known — cheap early-out
+  const meet=(other)=>{
+    if(other===pid || other<0 || p.met.includes(other)) return;
+    p.met.push(other);
+    if(silent) return;                                // seeding an old save: record, do not pay
+    const gain=firstContactBonus();
+    p.influence+=gain;
+    if(p.human && pid===viewIndex())
+      toast(`🤝 You have met ${houseOf(G.players[other])} — +📜${gain}`);
+  };
+  for(const u of G.units){
+    if(u.owner===pid || p.met.includes(u.owner)) continue;
+    if(p.visible.has(idx(u.x,u.y)) && !hiddenFrom(u,pid)) meet(u.owner);
+  }
+  for(const c of G.cities){                            // any tile inside their borders counts
+    if(c.owner<0 || c.owner===pid || p.met.includes(c.owner)) continue;
+    if(c.territory.some(([x,y])=>p.visible.has(idx(x,y)))) meet(c.owner);
+  }
 }
 
 /* -------------------------------- RENDER --------------------------------- */
@@ -751,12 +1616,23 @@ function resize(){
 }
 addEventListener("resize",resize); resize();
 
+// Centre a tile, keeping the player's zoom. This used to force z=1 — not by intent, but because
+// the centring omitted the zoom divisor and was only correct at z=1, so every call (turn start
+// behind the curtain, joining a room, the menu's Centre button) silently threw your zoom away.
 function centerCameraOn(c){
   if(!c) return;
-  G.cam.z=1;
   const w=tileWorld(c.x,c.y);
-  G.cam.x = w.wx - innerWidth/2;
-  G.cam.y = w.wy - innerHeight/2;
+  G.cam.x = w.wx - innerWidth/(2*G.cam.z);
+  G.cam.y = w.wy - innerHeight/(2*G.cam.z);
+}
+// Bring a tile into view WITHOUT touching zoom, and only if it is actually off-screen.
+// (centerCameraOn resets z to 1 because its centring maths omits the zoom divisor — see [23].)
+function lookAtIfOffscreen(x,y,margin){
+  const w=tileWorld(x,y), s=worldToScreen(w.wx,w.wy), m=margin||80;
+  if(s.x>=m && s.x<=innerWidth-m && s.y>=m && s.y<=innerHeight-m) return false;
+  G.cam.x = w.wx - innerWidth/(2*G.cam.z);
+  G.cam.y = w.wy - innerHeight/(2*G.cam.z);
+  return true;
 }
 const worldToScreen=(wx,wy)=>({x:(wx-G.cam.x)*G.cam.z, y:(wy-G.cam.y)*G.cam.z});
 const screenToWorld=(sx,sy)=>({x:sx/G.cam.z+G.cam.x, y:sy/G.cam.z+G.cam.y});
@@ -818,7 +1694,10 @@ function draw(){
       diamond(s2.x,s2.y,z*.9); ctx.fillStyle="rgba(94,194,255,.30)"; ctx.fill();
       ctx.strokeStyle="rgba(94,194,255,.85)"; ctx.lineWidth=1.5; ctx.stroke(); }
     if(G.atkTiles) for(const e of G.atkTiles){ const w2=tileWorld(e.x,e.y), s2=worldToScreen(w2.wx,w2.wy);
-      diamond(s2.x,s2.y,z*.9); ctx.strokeStyle="rgba(255,107,107,.95)"; ctx.lineWidth=2.5; ctx.stroke(); }
+      const armed = e===pendingTarget;                     // the target awaiting confirmation
+      diamond(s2.x,s2.y,z*.9);
+      if(armed){ ctx.fillStyle="rgba(255,107,107,.28)"; ctx.fill(); }
+      ctx.strokeStyle=armed?"#ff6b6b":"rgba(255,107,107,.95)"; ctx.lineWidth=armed?4:2.5; ctx.stroke(); }
     const w3=tileWorld(G.sel.x,G.sel.y), s3=worldToScreen(w3.wx,w3.wy);
     diamond(s3.x,s3.y,z*.96); ctx.strokeStyle="#ffd75e"; ctx.lineWidth=2.5; ctx.stroke();
   }
@@ -826,9 +1705,10 @@ function draw(){
   // cities & units in painter's order (front rows drawn last)
   const draws=[];
   for(const c of G.cities) if(seenTeam.revealed.has(idx(c.x,c.y))) draws.push({o:c.x+c.y, city:c});
-  for(const u of G.units) if(seenTeam.visible.has(idx(u.x,u.y)) && !hiddenFrom(u,viewIndex())) draws.push({o:u.x+u.y+.1, unit:u});
+  for(const u of G.units) if((seenTeam.visible.has(idx(u.x,u.y)) || scoutLights(idx(u.x,u.y))) && !hiddenFrom(u,viewIndex())) draws.push({o:u.x+u.y+.1, unit:u});
   draws.sort((a,b)=>a.o-b.o);
   for(const d of draws) d.city? drawCity(d.city, z, seenTeam) : drawUnit(d.unit, z);
+  if(scoutWalker) drawScout(scoutWalker, z);        // transient; always on top of the board
 
   requestAnimationFrame(draw);
 }
@@ -860,14 +1740,66 @@ function drawCity(c,z,seenTeam){
     ctx.font=`bold ${Math.round(9*z)}px Georgia`;
     ctx.fillText(c.owner<0? "·" : String(c.level), s.x, s.y+2*z);
   }
+  // §6.2 Listener gauge: progress toward the next level, on your own cities only — a rival's
+  // growth is not public information. Parchment fill keeps Listeners visually distinct from gold
+  // Influence and green HP, per the §1 three-noun rule. Exact numbers appear when zoomed in.
+  if(c.owner===viewIndex() && z>.5 && SET.gauge){
+    const need=levelNeed(c.level), frac=Math.max(0,Math.min(1,c.listeners/need));
+    const bw=22*z, bh=3.2*z, bx=s.x-bw/2, by=s.y+10*z, r=Math.min(1.6*z,bh/2);
+    roundRect(bx,by,bw,bh,r); ctx.fillStyle="rgba(6,9,13,.75)"; ctx.fill();
+    if(frac>0){ roundRect(bx,by,Math.max(bw*frac,bh),bh,r); ctx.fillStyle="#e8dcc0"; ctx.fill(); }
+    roundRect(bx,by,bw,bh,r); ctx.strokeStyle="rgba(0,0,0,.55)"; ctx.lineWidth=1; ctx.stroke();
+    if(z>1.05){
+      ctx.fillStyle="#e8dcc0"; ctx.font=`bold ${Math.round(7.5*z)}px Georgia`;
+      ctx.textBaseline="top";
+      ctx.fillText(`${c.listeners}/${need}`, s.x, by+bh+1.5*z);
+      ctx.textBaseline="middle";
+    }
+  }
 }
 
+// §7.3 L1 scout reward: a transient walker, drawn only while the path is being travelled.
+// Not a unit — it never enters G.units, so it costs no §7.2 army capacity and cannot be ordered.
+let scoutWalker=null;
+// Transient sight granted by the walk. revealAround() writes p.revealed (EXPLORED — terrain you
+// remember), but the unit draw filter reads p.visible, so the scout used to uncover ground and
+// nothing standing on it. This set is a second, temporary source of visibility for the draw
+// filter only. Deliberately NOT p.visible: recomputeVision rebuilds that from scratch on every
+// move, so anything written there is either clobbered mid-walk or left behind as a real fog leak.
+// scoutSeenFor pins it to the scouting seat — a hot-seat player who ends their turn mid-walk must
+// not hand the next player lit tiles.
+let scoutSeen=null, scoutSeenFor=-1, scoutSkip=false;
+const scoutLights=(k)=>!!scoutSeen && scoutSeenFor===viewIndex() && scoutSeen.has(k);
+function drawScout(s,z){
+  const w=tileWorld(s.x,s.y), sc=worldToScreen(w.wx,w.wy);
+  const px=sc.x, py=sc.y-6*z, r=10.5*z, col=viewingPlayer().color;
+  // Translucent with a DASHED ring: the solid gold ring means "your unit, still has actions"
+  // (see [19]) and this must not be mistaken for a commandable unit — it is a passing traveller.
+  ctx.fillStyle="rgba(0,0,0,.28)"; ctx.beginPath(); ctx.ellipse(px,sc.y+3*z,r*.85,r*.32,0,0,Math.PI*2); ctx.fill();
+  ctx.globalAlpha=.72;
+  ctx.setLineDash([4*z,3*z]);
+  ctx.beginPath(); ctx.arc(px,py,r+3.5*z,0,Math.PI*2);
+  ctx.strokeStyle="#ffd75e"; ctx.lineWidth=Math.max(1.5,2.2*z); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle=col; ctx.strokeStyle="rgba(255,255,255,.8)"; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
+  ctx.fillStyle=pickText(col); ctx.font=EMOJI_FONT(r*1.15);
+  ctx.textAlign="center"; ctx.textBaseline="middle";
+  ctx.fillText("🚶",px,py+1);
+  ctx.globalAlpha=1;
+}
 function drawUnit(u,z){
   const def=UNITS[u.type], col=G.players[u.owner].color;
   const w=tileWorld(u.x,u.y), s=worldToScreen(w.wx,w.wy);
   const px=s.x, py=s.y-6*z, r=10.5*z;
   // shadow
   ctx.fillStyle="rgba(0,0,0,.35)"; ctx.beginPath(); ctx.ellipse(px,s.y+3*z,r*.85,r*.32,0,0,Math.PI*2); ctx.fill();
+  // still-has-actions ring: your units stay lit while they can move or strike, so what is left
+  // to do reads at a glance. Same visual grammar as an available lore node (§10.3).
+  if(u.owner===viewIndex() && isHumanTurn() && canAct(u)){
+    ctx.beginPath(); ctx.arc(px,py,r+2.6*z,0,Math.PI*2);
+    ctx.strokeStyle="rgba(255,215,94,.32)"; ctx.lineWidth=Math.max(2,4.5*z); ctx.stroke();
+  }
   // token
   ctx.fillStyle=col; ctx.strokeStyle= (u.owner===viewIndex()? "#fff":"#0c0f14"); ctx.lineWidth=1.5;
   ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
@@ -877,8 +1809,8 @@ function drawUnit(u,z){
   // glyph
   ctx.fillStyle= pickText(col); ctx.font=EMOJI_FONT(r*1.15); ctx.textAlign="center"; ctx.textBaseline="middle";
   ctx.fillText(def.icon,px,py+(u.raft?-2:1));
-  // "done" dim
-  if(u.owner===viewIndex() && isHumanTurn() && u.acted && u.movesLeft<=0){
+  // "done" dim — the exact complement of the ring above, so the two can never disagree
+  if(u.owner===viewIndex() && isHumanTurn() && !canAct(u)){
     ctx.fillStyle="rgba(6,9,13,.5)"; ctx.beginPath(); ctx.arc(px,py,r,0,Math.PI*2); ctx.fill(); }
   // hp bar
   if(u.hp<u.maxhp && z>.5){
@@ -894,7 +1826,13 @@ function drawUnit(u,z){
 function roundRect(x,y,w,h,r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
 function hexA(hex,a){ const c=hx(hex); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; }
 function shade(hex,d){ const c=hx(hex); return `rgb(${clamp(c[0]+d)},${clamp(c[1]+d)},${clamp(c[2]+d)})`; }
-function pickText(hex){ const c=hx(hex); const lum=0.299*c[0]+0.587*c[1]+0.114*c[2]; return lum>150?"#0c0f14":"#fff"; }
+// Glyph colour for a unit coin: WCAG relative luminance, whichever of dark/white contrasts more.
+// (The old 0.299/0.587/0.114 sum with a >150 cutoff put white on Moss Choir at 2.29:1 — unreadable.)
+function pickText(hex){
+  const c=hx(hex).map(v=>{ v/=255; return v<=0.04045? v/12.92 : Math.pow((v+0.055)/1.055,2.4); });
+  const L=0.2126*c[0]+0.7152*c[1]+0.0722*c[2];
+  return ((L+0.05)/0.05) >= (1.05/(L+0.05)) ? "#0c0f14" : "#fff";
+}
 function hx(h){ h=h.replace("#",""); if(h.length===3)h=h.split("").map(c=>c+c).join(""); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
 const clamp=(v)=>Math.max(0,Math.min(255,v));
 
@@ -905,7 +1843,7 @@ function isHumanTurn(){ return !G.over && G.players[G.current].human && (!MP.on 
 function multiHuman(){ return G.players.filter(p=>p.human).length>1; }
 function showCurtain(pid){
   const p=G.players[pid];
-  el("curtainName").textContent=p.name;
+  el("curtainName").textContent=houseOf(p);
   el("curtainName").style.color=p.color;
   el("curtain").classList.add("on");
 }
@@ -914,11 +1852,21 @@ function showCurtain(pid){
 /* --------------------------------- INPUT --------------------------------- */
 const pointers=new Map();
 let downPos=null, dragCam=null, dragged=false, pinchPrev=null;
+// Tap slop: how far a pointer may wander and still count as a tap rather than a camera drag.
+// This was a flat 6px of MANHATTAN distance, which a finger routinely exceeds on a quick tap —
+// so on touch devices only a deliberate press-and-hold (which stays still) registered, and
+// tapping a unit appeared to do nothing. Euclidean now, and a finger gets a real allowance.
+const TAP_SLOP_MOUSE=6;                  // touch slop is SET.tapSlop — adjustable in Settings ([39])
+let tapSlop=TAP_SLOP_MOUSE;
 cv.addEventListener("pointerdown",e=>{
   if(!G) return;
-  cv.setPointerCapture(e.pointerId);
+  if(!G.over && !isHumanTurn()) aiSkip=true;      // tap through the rest of an enemy turn
+  // Guarded: a throw here used to abort the whole handler, leaving downPos/tapSlop unset and the
+  // next drag mis-anchored. Capture is an optimisation, not a requirement.
+  try{ cv.setPointerCapture(e.pointerId); }catch(err){}
   pointers.set(e.pointerId,{x:e.clientX,y:e.clientY});
-  if(pointers.size===1){ downPos={x:e.clientX,y:e.clientY}; dragCam={x:G.cam.x,y:G.cam.y}; dragged=false; }
+  if(pointers.size===1){ downPos={x:e.clientX,y:e.clientY}; dragCam={x:G.cam.x,y:G.cam.y}; dragged=false;
+    tapSlop = (e.pointerType==="mouse")? TAP_SLOP_MOUSE : SET.tapSlop; }
   else if(pointers.size===2){ const[a,b]=[...pointers.values()]; pinchPrev=Math.hypot(a.x-b.x,a.y-b.y); dragged=true; }
 });
 cv.addEventListener("pointermove",e=>{
@@ -932,20 +1880,36 @@ cv.addEventListener("pointermove",e=>{
     pinchPrev=d;
     return;
   }
-  if(downPos && Math.abs(e.clientX-downPos.x)+Math.abs(e.clientY-downPos.y)>6) dragged=true;
+  if(!dragged && downPos && Math.hypot(e.clientX-downPos.x, e.clientY-downPos.y)>tapSlop){
+    dragged=true;
+    downPos={x:e.clientX,y:e.clientY};      // re-anchor so the pan starts here, with no slop-sized jolt
+    dragCam={x:G.cam.x,y:G.cam.y};
+  }
   if(dragged && pointers.size===1 && dragCam && downPos){
     G.cam.x=dragCam.x-(e.clientX-downPos.x)/G.cam.z;
     G.cam.y=dragCam.y-(e.clientY-downPos.y)/G.cam.z;
   }
 });
+// Lifting one finger out of a pinch must RE-ANCHOR the drag. downPos/dragCam were captured on the
+// first finger down, before the pinch moved the camera; without re-anchoring, the next one-finger
+// move computes cam = dragCam - delta and snaps the board back to its pre-zoom position — the
+// "I lose my place whenever I zoom" bug.
+function reanchorDrag(){
+  if(pointers.size!==1) return;
+  const [rem]=[...pointers.values()];
+  downPos={x:rem.x,y:rem.y}; dragCam={x:G.cam.x,y:G.cam.y}; dragged=true;
+}
 cv.addEventListener("pointerup",e=>{
   pointers.delete(e.pointerId);
   if(pointers.size<2) pinchPrev=null;
   if(!dragged && downPos && pointers.size===0) handleTap(e.clientX,e.clientY);
+  reanchorDrag();
   if(pointers.size===0){ downPos=null; dragCam=null; dragged=false; }
 });
 cv.addEventListener("pointercancel",e=>{
   pointers.delete(e.pointerId);
+  if(pointers.size<2) pinchPrev=null;
+  reanchorDrag();
   if(pointers.size===0){ downPos=null; dragCam=null; dragged=false; pinchPrev=null; }
 });
 cv.addEventListener("wheel",e=>{ e.preventDefault(); zoomAt(e.clientX,e.clientY, e.deltaY<0?1.12:1/1.12); },{passive:false});
@@ -960,36 +1924,67 @@ document.getElementById("btnZout").onclick=()=>zoomAt(innerWidth/2,innerHeight/2
 
 /* §11 Kindle: spend a charge to permanently reveal a 7×7 area anywhere on the map */
 let kindleMode=false;
+// Target awaiting confirmation: tapping an enemy forecasts the trade, tapping again commits.
+// Deliberately NOT on G — G is the save blob and the network format (§14); a unit reference
+// would not survive JSON. Transient UI state, like kindleMode.
+let pendingTarget=null;
+// The reveal itself, for ANY player — doKindle was written against viewingPlayer(), which is why
+// a CPU could never fire one (§18.3: "CPU banks Kindle charges but never spends them").
+function kindleAt(p,x,y){
+  if(!(p.kindle>0)) return false;
+  p.kindle--;
+  for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)
+    if(inb(x+dx,y+dy)) p.revealed.add(idx(x+dx,y+dy));
+  return true;
+}
 function doKindle(x,y){
   const p=viewingPlayer();
   kindleMode=false;
-  if(p.kindle>0){
-    p.kindle--;
-    for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)
-      if(inb(x+dx,y+dy)) p.revealed.add(idx(x+dx,y+dy));
-    toast("🕯 Kindled — the land is remembered");
-    save();
-  }
+  if(kindleAt(p,x,y)){ toast("🕯 Kindled — the land is remembered"); save(); }
   renderActions();
 }
 function handleTap(sx,sy){
   if(G.over || !isHumanTurn()) return;
+  // A scout walk is 12 x SCOUT_STEP_MS of animation you did not ask to sit through. Tapping ends
+  // it; the walk's finally block still applies the whole path, so skipping never costs you fog.
+  // Swallowing the tap here (rather than setting the flag on pointerdown) stops the same tap from
+  // also issuing an order to whatever happened to be under your finger.
+  if(scoutWalker){ scoutSkip=true; return; }
   const c=tileFromScreen(sx,sy); if(!c) return;
   const {x,y}=c;
   if(kindleMode){ doKindle(x,y); return; }
 
-  // 1) If a unit is selected and we tapped an attack target -> attack
+  // 1) Tapped an attack target: the first tap forecasts the trade, a second tap commits.
   if(G.sel && G.atkTiles){
     const tgt=G.atkTiles.find(e=>e.x===x&&e.y===y);
-    if(tgt){ doAttack(G.sel, tgt); return; }
+    if(tgt){
+      // Forecast off (Settings): one tap commits, no arm-then-confirm step.
+      if(!SET.forecast){ pendingTarget=null; doAttack(G.sel,tgt); return; }
+      if(pendingTarget===tgt){ pendingTarget=null; doAttack(G.sel,tgt); }
+      else { pendingTarget=tgt; renderAttackCard(G.sel,tgt); renderActions(); }
+      return;
+    }
   }
+  pendingTarget=null;                      // tapping anywhere else cancels the pending attack
   // 2) If a unit is selected and we tapped a reachable tile -> move
   if(G.sel && G.moveTiles && G.moveTiles.some(([mx,my])=>mx===x&&my===y)){
     doMove(G.sel,x,y); return;
   }
-  // 3) Select a friendly unit
+  // 3) Select a friendly unit. A unit parked on your own city used to swallow the tap entirely —
+  //    step 4 below was unreachable, so you could not train or build there. Tapping the already-
+  //    selected unit now falls through to its city (the action bar also carries a 🏛 button).
   const u=unitAt(x,y);
-  if(u && u.owner===viewIndex()){ selectUnit(u); return; }
+  if(u && u.owner===viewIndex()){
+    const own=cityAt(x,y);
+    if(G.sel===u){
+      // Same swallowed-tap bug as [17], one tile over: a unit parked on fruit made step 5
+      // unreachable, so that resource could never be harvested while anything stood on it.
+      // Re-tapping the selected unit falls through to whatever else the tile offers.
+      if(own && own.owner===viewIndex()){ clearSel(); openCity(own); return; }
+      if(tileAt(x,y).res!==R.NONE){ clearSel(); showTileCard(x,y); return; }
+    }
+    selectUnit(u); return;
+  }
   // 4) Select own city
   const city=cityAt(x,y);
   if(city && city.owner===viewIndex()){ clearSel(); openCity(city); return; }
@@ -999,14 +1994,32 @@ function handleTap(sx,sy){
 }
 
 function selectUnit(u){
-  G.sel=u;
-  G.moveTiles = (u.movesLeft>0 && !u.acted)? reachable(u) : null;
-  G.atkTiles  = (!u.attacked)? visibleTargets(u) : null;
+  G.sel=u; pendingTarget=null;
+  G.moveTiles = canMoveNow(u)? reachable(u) : null;
+  G.atkTiles  = canAttackNow(u)? visibleTargets(u) : null;
   renderUnitCard(u);
   renderActions();
 }
-function visibleTargets(u){ return targetsFor(u).filter(e=>viewingPlayer().visible.has(idx(e.x,e.y))); }
-function clearSel(){ G.sel=null; G.moveTiles=null; G.atkTiles=null; ctxcard.style.display="none"; renderActions(); }
+// The fog filter moved into targetsFor() and is now keyed on the unit's owner rather than the
+// viewer, so this is a pass-through kept only so its two call sites still read as "what may I hit".
+function visibleTargets(u){ return targetsFor(u); }
+// Does this unit still have something to give this turn? Mirrors exactly what selectUnit will
+// offer it: movement while movesLeft>0 and not spent, an attack while it has not struck.
+/* Turn economy (ruling 2026-07-28 — REVERSES [19], which had enforced "move OR attack").
+   The rule is now ordered, not exclusive:
+     · moving does NOT cost you the attack — every unit may move and then strike;
+     · attacking DOES cost you the move — you commit where you stand.
+   `dash` is the sole exception and its meaning is inverted accordingly: it no longer means "may
+   attack after moving" (everyone can now), it means "may still MOVE after attacking". No unit in
+   the roster has it today; it is a power-budget item for a future character.
+   Both predicates are shared by the player path and aiMoveUnit so the two cannot drift. */
+function canMoveNow(u){ return !u.acted && u.movesLeft>0 && (!u.attacked || !!UNITS[u.type].dash); }
+function canAttackNow(u){ return !u.acted && !u.attacked; }
+// The gold ring means "this unit has something it can still do RIGHT NOW". A unit that has moved
+// keeps its attack, so it must only stop glowing once nothing is actually in reach — otherwise
+// every moved unit would glow all turn and the ring would stop meaning anything.
+function canAct(u){ return canMoveNow(u) || (canAttackNow(u) && targetsFor(u).length>0); }
+function clearSel(){ G.sel=null; G.moveTiles=null; G.atkTiles=null; pendingTarget=null; ctxcard.style.display="none"; renderActions(); }
 
 /* ------------------------------- RULES ----------------------------------- */
 function doMove(u,x,y){
@@ -1016,12 +2029,12 @@ function doMove(u,x,y){
   collectTile(u);                         // §4.5 libraries / §4.3 storytellers
   u.movesLeft=0;                          // simple: any move spends the turn's movement
   recomputeVision(u.owner);
-  // dash units may still attack after moving
-  const canAtk = UNITS[u.type].dash && !u.attacked;
+  // Moving no longer ends the unit's turn — it keeps its strike. Note this deliberately does NOT
+  // set u.acted when nothing is in reach: an ally moving later can light a target, and marking the
+  // unit done here would deny an attack the rule now allows.
   G.moveTiles=null;
-  G.atkTiles = canAtk? visibleTargets(u) : null;
-  if(!canAtk) u.acted=true;
-  if(!G.atkTiles || !G.atkTiles.length){ u.acted=true; clearSel(); }
+  G.atkTiles = canAttackNow(u)? visibleTargets(u) : null;
+  if(!G.atkTiles || !G.atkTiles.length){ clearSel(); }
   else { renderUnitCard(u); renderActions(); }
   autoCapturePrompt(u);
 }
@@ -1047,7 +2060,7 @@ function collectTile(u){
     if(roll<30){ p.influence+=5; msg="+5 Influence"; }
     else if(roll<55){
       const pool=Object.keys(TECHS).filter(id=>canResearch(u.owner,id));
-      if(pool.length){ const id=pool[ri(pool.length)]; p.techs.add(id); msg=`free lore — ${TECHS[id].name}`; }
+      if(pool.length){ const id=pool[ri(pool.length)]; p.techs.add(id); msg=`free lore — ${nodeFor(u.owner,id).name}`; }
       else{ p.influence+=5; msg="+5 Influence"; }
     }
     else if(roll<80){
@@ -1063,7 +2076,8 @@ function collectTile(u){
     }
     else{
       const spot=freeLandNear(u.x,u.y);
-      if(spot && canFieldMore(u.owner)){ spawnUnit("wanderer",spot[0],spot[1],u.owner); msg="a free Wanderer steps out"; }
+      const hc=spot? homeCityFor(u.owner,spot[0],spot[1]) : null;   // §7.2: it needs a city to answer to
+      if(spot && hc){ spawnUnit("wanderer",spot[0],spot[1],u.owner,hc.id); msg="a free Wanderer steps out"; }
       else{ p.influence+=5; msg="+5 Influence"; }
     }
     if(G.players[u.owner].human){ toast(`📚 Abandoned Library: ${msg}`); }
@@ -1077,7 +2091,10 @@ function collectTile(u){
 function offerStoryteller(t,u){
   const p=G.players[u.owner], s=t.story, d=UNITS[s.unit];
   const folkName=(FOLKLORES.find(f=>f.id===s.folk)||FOLKLORES[0]).name;
-  const can=p.influence>=s.price && canFieldMore(u.owner) && !!freeLandNear(u.x,u.y);
+  // §7.2: a bought character answers to a city like any other — item 7 (it counted against no
+  // city at all) was a symptom of there being no per-city books to count against.
+  const sp0=freeLandNear(u.x,u.y);
+  const can=p.influence>=s.price && !!sp0 && !!homeCityFor(u.owner,sp0[0],sp0[1]);
   openModal("🎭 The Storyteller",`A tale of the ${folkName}, sold once and then gone.`,`
     <div class="card" style="cursor:default">
       <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">📜${s.price}</span></div>
@@ -1091,9 +2108,10 @@ function offerStoryteller(t,u){
   el("stNo").onclick=()=>el("scrim").classList.remove("on");
   el("stBuy").onclick=()=>{
     const sp=freeLandNear(u.x,u.y);
-    if(!(p.influence>=s.price && canFieldMore(u.owner) && sp)) return;
+    const hc=sp? homeCityFor(u.owner,sp[0],sp[1]) : null;
+    if(!(p.influence>=s.price && sp && hc)) return;
     p.influence-=s.price; t.story=null;                    // §4.3: vanishes on purchase
-    spawnUnit(s.unit,sp[0],sp[1],u.owner);
+    spawnUnit(s.unit,sp[0],sp[1],u.owner,hc.id);
     toast(`${d.name} joins your telling`);
     recomputeVision(u.owner); renderHUD(); el("scrim").classList.remove("on"); save();
   };
@@ -1101,9 +2119,10 @@ function offerStoryteller(t,u){
 function aiBuyStoryteller(t,u){
   const p=G.players[u.owner], s=t.story;
   const spot=freeLandNear(u.x,u.y);
-  if(p.influence>=s.price && canFieldMore(u.owner) && spot){
+  const hc=spot? homeCityFor(u.owner,spot[0],spot[1]) : null;
+  if(p.influence>=s.price && spot && hc){
     p.influence-=s.price; t.story=null;
-    spawnUnit(s.unit,spot[0],spot[1],u.owner);
+    spawnUnit(s.unit,spot[0],spot[1],u.owner,hc.id);
     recomputeVision(u.owner);
   }
 }
@@ -1131,6 +2150,32 @@ function combat(att,def,ranged){
   const defDmg=Math.round((dForce/total)*dDefV*4.5);
   return {atkDmg,defDmg};
 }
+// Would player pid's fog light tile (x,y)? Mirrors recomputeVision's radii exactly, but computes
+// nothing and stores nothing — the forecast must not mutate another player's fog to answer this.
+function playerSeesTile(pid,x,y){
+  for(const u of G.units) if(u.owner===pid){
+    const r=(UNITS[u.type].vision||1)+(tileAt(u.x,u.y).t===T.MOUNTAIN?1:0);
+    if(cheb(u.x,u.y,x,y)<=r) return true;
+  }
+  for(const c of G.cities) if(c.owner===pid){
+    if(cheb(c.x,c.y,x,y)<=2+(c.watchcairn?1:0)) return true;
+    if(c.explorer && cheb(c.x,c.y,x,y)<=5) return true;
+  }
+  return false;
+}
+// Read-only projection of doAttack + §9.2 retaliate, so the player can see the trade before
+// committing. Mirrors the resolution order: a kill suppresses the counter entirely.
+function previewAttack(att,def){
+  const {atkDmg,defDmg}=combat(att,def, cheb(att.x,att.y,def.x,def.y)>1);
+  const kills = def.hp-atkDmg<=0;
+  const inRange = cheb(att.x,att.y,def.x,def.y)<=unitRange(def);
+  const seen = playerSeesTile(def.owner,att.x,att.y);
+  const counter = (kills||!inRange||!seen)? 0 : Math.round(defDmg*0.25);
+  return { atkDmg, kills, counter, dies: att.hp-counter<=0,
+           targetHpAfter: Math.max(0,def.hp-atkDmg), selfHpAfter: Math.max(0,att.hp-counter),
+           noCounterWhy: kills? "target destroyed" : !inRange? "out of its range" : !seen? "it cannot see you"
+                       : counter===0? "its counter is too weak to wound" : null };
+}
 function doAttack(att,def){
   const aDef=UNITS[att.type];
   const ranged = cheb(att.x,att.y,def.x,def.y)>1;
@@ -1146,21 +2191,30 @@ function doAttack(att,def){
     retaliate(att,def,defDmg);   // §9.2 replaces full melee retaliation
   }
   toast(msg);
-  att.attacked=true; att.movesLeft=0;
-  if(G.units.includes(att)) { att.acted=true; }
+  att.attacked=true;
+  // Attacking commits you where you stand — unless dash, which buys the move back.
+  if(G.units.includes(att) && !UNITS[att.type].dash){ att.movesLeft=0; att.acted=true; }
   recomputeVision(att.owner);
   checkElimination();
   clearSel();
 }
-function removeUnit(u){ const i=G.units.indexOf(u); if(i>=0)G.units.splice(i,1); if(G.sel===u)clearSel(); }
+function removeUnit(u){ const i=G.units.indexOf(u); if(i>=0)G.units.splice(i,1); if(pendingTarget===u)pendingTarget=null; if(G.sel===u)clearSel(); }
 // §8.4 Storied: landing a kill heals to full and grants +5 max hp, marked ✦.
 // (Per-unit storied.effect extras arrive with the Toltales roster.)
+// Add Kindle charges under the §11 cap. Returns whether anything was actually gained, so the
+// UI never promises a charge that the cap swallowed.
+function grantKindle(p,n){
+  const before=p.kindle||0;
+  p.kindle=Math.min(KINDLE_CAP, before+n);
+  return p.kindle>before;
+}
 function makeStoried(u){
   if(u.storied) return;
   u.storied=true; u.maxhp+=5; u.hp=u.maxhp;
   const p=G.players[u.owner];
-  p.kindle=(p.kindle||0)+1;                 // §8.4 Lantern Court bonus: +1 Kindle per Storied
-  if(p.human){ toast(`✦ ${UNITS[u.type].name} is now Storied — +1 Kindle`); renderActions(); }
+  p.storiedCount=(p.storiedCount||0)+1;     // §8.4, throttled: a charge every KINDLE_PER_STORIED
+  const gained = (p.storiedCount % KINDLE_PER_STORIED === 0) && grantKindle(p,1);
+  if(p.human){ toast(`✦ ${UNITS[u.type].name} is now Storied${gained?" — +1 Kindle":""}`); renderActions(); }
 }
 // §9.2 Toltales retaliation: one auto-counter at 25% of the §9.1 defender damage, only if
 // the defender survived, the attacker is within the defender's range, AND the defending
@@ -1199,13 +2253,17 @@ function canCapture(u){
 function doCapture(u){
   const c=cityAt(u.x,u.y); if(!c||c.owner===u.owner) return;
   if(!canCapture(u)) return;
-  const wasCapital=c.capital, prev=c.owner;
   c.owner=u.owner; c.convert=null;
   if(c.owner>=0 && c.level===0) c.level=1;
-  c.capital = c.capital && false;           // captured capitals stop being *their* capital seat
-  if(wasCapital){ c.capital=true; /* becomes a normal high-value city of new owner */ }
+  // A captured capital becomes an ORDINARY city of the new owner (ruling 2026-07-28). The two
+  // lines here used to cancel each other out — `c.capital = c.capital && false` immediately
+  // followed by `if(wasCapital) c.capital=true` — so a captor ended up holding two capitals, the
+  // ★ badge showed twice, capitalOf() became ambiguous, and the capital-only Wellspring (§7.3 L3)
+  // could be taken at both. Its level carries over, which is the real prize; the capital SEAT does
+  // not, so losing your own capital is a permanent loss.
+  c.capital=false;
   computeTerritory(c);
-  toast(`Captured ${wasCapital?"a capital":"a "+(prev<0?"village":"city")}!`);
+  toast(`${cityLabel(c)} now tells your tale`);
   u.acted=true; u.movesLeft=0;
   recomputeIncome(); recomputeVision(u.owner);
   checkElimination(u.owner);
@@ -1231,19 +2289,46 @@ function doHarvest(px,py,owner){
 }
 
 /* --------------------------- CITY / LISTENERS ----------------------------- */
+// §7.2: each level costs more than the last. Slice 1 used level+1, which with §6.2's passive
+// +1 Listener/turn levelled a capital on turn 2 with no player input and reached L8 by turn 40 —
+// growth outran every other system. level*2+2 (L1→2 costs 4, L2→3 six, L3→4 eight) puts L2 near
+// turn 4 and makes harvesting, not waiting, the lever. Tuning knob. One source of truth: the
+// city modal and the on-tile gauge both read this.
+function levelNeed(level){ return level*2+2; }
 function addListeners(city,n){
   city.listeners+=n;
-  while(city.listeners >= city.level+1){
-    city.listeners-=(city.level+1);
+  while(city.listeners >= levelNeed(city.level)){
+    city.listeners-=levelNeed(city.level);
     city.level++;
     if(city.owner<0) continue;
     if(G.players[city.owner].human) offerLevelReward(city);
     else aiLevelReward(city);
   }
 }
-/* §7.2 army valve: fieldable units = Σ (level+1) over owned cities */
-function armyCap(pid){ return G.cities.filter(c=>c.owner===pid).reduce((s,c)=>s+c.level+1,0); }
-function canFieldMore(pid){ return G.units.filter(u=>u.owner===pid).length < armyCap(pid); }
+/* §7.2 army valve — PER CITY (ruling 2026-07-28; supersedes the spec's Σ-over-cities reading).
+   Every unit carries `home`, the id of the city that produced it. A city may train while the
+   units it produced AND still shares an owner with number fewer than level+1.
+
+   The owner===c.owner half of the test is doing the real work: both capture rulings fall out of
+   it with no special-casing, and no bookkeeping runs at capture time.
+     · lose the city → its units survive, but `home` now points at a city you do not own, so they
+       gate nothing, free nothing, and cannot be replaced;
+     · retake it    → they match again and re-occupy its slots;
+     · the new owner's books count only what THEY produced there.
+   Over-cap is legal (rewards, recapture) and only blocks training — hence strict <. */
+function cityCap(c){ return c.level+1; }
+function cityUnitCount(c){ return G.units.filter(u=>u.home===c.id && u.owner===c.owner).length; }
+function canTrainAt(c){ return cityUnitCount(c) < cityCap(c); }
+// Field spawns (library reward, Storyteller purchase) have no producing city, so they answer to
+// the owner's nearest city WITH A FREE SLOT. null = every city full, which blocks the spawn just
+// as the old global check did.
+function homeCityFor(pid,x,y){
+  const opts=G.cities.filter(c=>c.owner===pid && canTrainAt(c));
+  if(!opts.length) return null;
+  return opts.reduce((a,b)=> cheb(b.x,b.y,x,y) < cheb(a.x,a.y,x,y) ? b : a);
+}
+// Empire total, still the sum of the per-city caps — display only, never a training gate.
+function armyCap(pid){ return G.cities.filter(c=>c.owner===pid).reduce((s,c)=>s+cityCap(c),0); }
 function isCoastal(c){
   for(const[dx,dy]of NB8) if(inb(c.x+dx,c.y+dy) && tileAt(c.x+dx,c.y+dy).t===T.WATER) return true;
   return false;
@@ -1283,63 +2368,135 @@ function research(pid,id){
   const p=G.players[pid], cost=techCost(pid,id);
   if(!canResearch(pid,id) || p.influence<cost) return false;
   p.influence-=cost; p.techs.add(id);
-  if(p.human){ toast(`Researched ${TECHS[id].name}`); renderHUD(); recomputeIncome(); if(pid===viewIndex()) buildTechModal(); }
+  if(p.human){ toast(`Researched ${nodeFor(pid,id).name}`); renderHUD(); recomputeIncome(); if(pid===viewIndex()) buildTechModal(); }
   return true;
 }
 
 /* ---------------------------------- AI ----------------------------------- */
-function aiTurn(pid){
+// Research + training. Not board events, so the paced turn resolves these instantly.
+function aiEconomy(pid){
   const p=G.players[pid];
   // 1) research: buy cheapest affordable unlockable tech, prefer combat/economy
-  const wish=["old_roads","harvesting","lantern_roads","forest_paths","hunting","mountain_paths","delving","fishing","stonereading","wildcalling","groveward","hearthward","raftcraft","bonfire_moot","forgecraft","peakward","deepharvest","thornbind","currents","tidecall"];
+  // slot ids, so this order is folklore-agnostic — whatever variant sits in a slot is what it buys
+  const wish=["old_roads","harvesting","wayshrines","forest_paths","hunting","mountain_paths","delving","fishing","stonereading","wildcalling","groveward","hearthward","raftcraft","festival","forgecraft","peakward","deepharvest","thornbind","currents","tidecall"];
   for(const id of wish){
     if(canResearch(pid,id) && p.influence>=techCost(pid,id)+2){ research(pid,id); break; }
   }
   // 2) train units at owned cities if affordable (Forge discounts locally; §7.2 cap applies)
   for(const c of G.cities.filter(c=>c.owner===pid)){
-    if(!canFieldMore(pid)) break;
+    if(!canTrainAt(c)) continue;                  // per-city now: a full city must not stop the rest
     if(unitAt(c.x,c.y)) continue;
     const options=affordableUnits(pid,p.influence);
     if(options.length){
       const type=options[options.length-1];       // best affordable
       const cost=Math.max(1, UNITS[type].cost-(c.forge?1:0));
-      if(p.influence>=cost){ p.influence-=cost; spawnUnit(type,c.x,c.y,pid); }
+      if(p.influence>=cost){ p.influence-=cost; spawnUnit(type,c.x,c.y,pid,c.id); }
     }
   }
-  // 3) move & fight each unit
-  for(const u of G.units.filter(u=>u.owner===pid)){
-    aiMoveUnit(u);
+  // 3) §11 Kindle — the CPU used to bank charges forever (§18.3)
+  aiKindle(pid);
+}
+/* §11: spend a charge when the board is actually worth lighting. Every candidate centre is scored
+   by how many tiles its 7x7 would NEWLY reveal, minus a penalty for distance from the CPU's own
+   cities and units — so it lights the ground it is about to expand into rather than a far corner
+   it will never reach. Stepping the scan by 2 keeps it cheap (~64 candidates at N=21).
+   Both thresholds are tuning knobs. Note this does make CPUs meaningfully better informed. */
+const KINDLE_MIN_GAIN=20, KINDLE_DIST_PENALTY=1.5;   // 7x7 = 49 tiles, so 20 is ~40% new
+function aiKindle(pid){
+  const p=G.players[pid];
+  if(!(p.kindle>0)) return false;
+  const anchors=[...G.cities.filter(c=>c.owner===pid), ...G.units.filter(u=>u.owner===pid)];
+  if(!anchors.length) return false;
+  let best=null, bestScore=0;
+  for(let y=3;y<G.N-3;y+=2) for(let x=3;x<G.N-3;x+=2){
+    let gain=0;
+    for(let dy=-3;dy<=3;dy++)for(let dx=-3;dx<=3;dx++)
+      if(inb(x+dx,y+dy) && !p.revealed.has(idx(x+dx,y+dy))) gain++;
+    if(gain<KINDLE_MIN_GAIN) continue;
+    let dist=Infinity;
+    for(const a of anchors) dist=Math.min(dist, cheb(a.x,a.y,x,y));
+    const score=gain - dist*KINDLE_DIST_PENALTY;
+    if(score>bestScore){ bestScore=score; best=[x,y]; }
   }
+  if(!best) return false;
+  return kindleAt(p,best[0],best[1]);
+}
+// Synchronous whole turn — kept for headless simulation; the live path uses aiTurnPaced.
+function aiTurn(pid){
+  aiEconomy(pid);
+  for(const u of G.units.filter(u=>u.owner===pid)) aiMoveUnit(u);
   recomputeVision(pid); recomputeIncome();
 }
+
+/* --- watching the enemy turn (one action at a time) ---------------------------------------
+   The CPU used to resolve a whole turn inside one 220ms timeout: units teleported and fights
+   happened invisibly. Now each unit acts in turn with a beat between, but ONLY when the viewer
+   can actually see it — unseen actions stay instant, so a 9-CPU game does not crawl. Tapping
+   skips the rest of the pacing. Callers must await this: advancePlayer()/mpPush() handing off
+   mid-simulation would desync an online room (§14).                                         */
+// beat between visible enemy actions — SET.aiStep, adjustable in Settings ([39]); 0 = instant
+let aiSkip=false;
+const sleep=(ms)=>new Promise(r=>setTimeout(r,ms));
+function viewerCanSeeUnit(u){
+  const v=G.players[viewIndex()]; if(!v) return false;
+  return v.visible.has(idx(u.x,u.y)) && !hiddenFrom(u,viewIndex());   // matches the draw filter
+}
+function viewerForceSum(){                // hp+count of the viewer's own units
+  let s=0; for(const u of G.units) if(u.owner===viewIndex()) s+=u.hp+1000;
+  return s;
+}
+async function aiTurnPaced(pid){
+  aiSkip=false;
+  aiEconomy(pid);
+  for(const u of G.units.filter(u=>u.owner===pid)){
+    if(!G.units.includes(u)) continue;                   // died to a counter earlier in the loop
+    const sawBefore=viewerCanSeeUnit(u), mineBefore=viewerForceSum();
+    aiMoveUnit(u);
+    recomputeVision(pid);
+    // show the beat if the actor was or is on a lit tile, or if our own force changed at all
+    // (an unseen attacker still costs us hp — that must not flash past unnoticed)
+    const notable = sawBefore
+                 || (G.units.includes(u) && viewerCanSeeUnit(u))
+                 || viewerForceSum()!==mineBefore;
+    if(notable && !aiSkip && !G.over && SET.aiStep>0){
+      if(G.units.includes(u)) lookAtIfOffscreen(u.x,u.y);
+      renderHUD();
+      await sleep(SET.aiStep);
+    }
+  }
+  recomputeVision(pid); recomputeIncome(); renderHUD();
+}
+// §10.2 lookup #2: the roster is per folklore now, not "every unit in the game".
 function affordableUnits(pid,influence){
   const p=G.players[pid];
-  return Object.keys(UNITS).filter(k=>{
+  return rosterOfPlayer(pid).filter(k=>{
     const d=UNITS[k];
-    if(d.tech && !p.techs.has(d.tech)) return false;
+    if(d.tech && !p.techs.has(d.tech)) return false;   // d.tech is a SLOT id
     return d.cost<=influence;
   }).sort((a,b)=>UNITS[a].cost-UNITS[b].cost);
 }
 function aiMoveUnit(u){
   // §7.1: Take City is the whole turn's action — check before attacking
   if(canCapture(u)){ silentCapture(u); return; }
-  // attack if a target is in range now
+  // Already in reach? Strike from here — moving first could only walk us out of range.
   let tgts=targetsFor(u).sort((a,b)=>a.hp-b.hp);
-  if(tgts.length && !u.attacked){ aiSimAttack(u,tgts[0]); if(!G.units.includes(u))return; }
+  if(tgts.length && canAttackNow(u)){ aiSimAttack(u,tgts[0]); if(!G.units.includes(u))return; }
   if(cityUnder(u)){ u.acted=true; u.movesLeft=0; return; }   // §7.1: hold the tile, don't wander off
   // move toward nearest enemy city / village / unit
   const goal=aiGoal(u);
-  if(goal && u.movesLeft>0 && !u.acted){
+  if(goal && canMoveNow(u)){
     const opts=reachable(u);
     if(opts.length){
       opts.sort((A,B)=> cheb(A[0],A[1],goal.x,goal.y)-cheb(B[0],B[1],goal.x,goal.y));
       const [nx,ny]=opts[0];
-      if(cheb(nx,ny,u.x,u.y)>0){ u.x=nx; u.y=ny; u.movesLeft=0; updateRaftState(u); collectTile(u); }
+      if(cheb(nx,ny,u.x,u.y)>0){ u.x=nx; u.y=ny; u.movesLeft=0; updateRaftState(u); collectTile(u);
+        recomputeVision(u.owner); }   // doMove() does this for the player; targetsFor is fog-gated now
     }
-    // after moving: start converting if we landed on a city, else try attack again
+    // after moving: start converting if we landed on a city, else strike from the new tile —
+    // no longer dash-gated, since moving no longer costs the attack (see canMoveNow/canAttackNow)
     beginSiege(u);
     tgts=targetsFor(u);
-    if(tgts.length && !u.attacked){ aiSimAttack(u,tgts.sort((a,b)=>a.hp-b.hp)[0]); }
+    if(tgts.length && canAttackNow(u)){ aiSimAttack(u,tgts.sort((a,b)=>a.hp-b.hp)[0]); }
   }
   u.acted=true; u.movesLeft=0;
 }
@@ -1356,7 +2513,8 @@ function aiSimAttack(att,def){
   def.hp-=atkDmg;
   if(def.hp<=0){ removeUnit(def); makeStoried(att); }
   else retaliate(att,def,defDmg);   // §9.2
-  att.attacked=true; att.movesLeft=0;
+  att.attacked=true;
+  if(!UNITS[att.type].dash) att.movesLeft=0;   // same commit-where-you-stand rule as doAttack
   checkElimination();
 }
 function silentCapture(u){
@@ -1369,7 +2527,7 @@ function aiLevelReward(city){
   // §7.3 CPU picks: economy-favouring early, army/score later (simple weighting)
   const row=Math.min(city.level-1,5);
   if(row<=1){
-    if(G.turn>8 && canFieldMore(city.owner) && !unitAt(city.x,city.y)) applyReward(city,"freeunit");
+    if(G.turn>8 && canTrainAt(city) && !unitAt(city.x,city.y)) applyReward(city,"freeunit");
     else applyReward(city,"inc1");
   } else if(row===2){
     const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
@@ -1397,6 +2555,11 @@ function advancePlayer(){
     G.turn++;
   }
   G.current=next;
+  // §12 Score mode ends when the ROUND rolls past the limit, not on one seat's turn. This used to
+  // sit in startPlayerTurn gated on `pid===0`: turn order is randomised (§2) so seat 0 is an
+  // arbitrary player, and once seat 0 was eliminated startPlayerTurn(0) never ran again and the
+  // limit could never fire at all — a Score game ran forever.
+  if(G.mode==="score" && G.turn>SCORE_TURN_LIMIT){ endByScore(); return; }
   // §14 online handoff: a remote human's turn is played on THEIR device — upload and wait.
   // startPlayerTurn deliberately does not run here, so their income/rewards happen locally to them.
   if(MP.on && G.players[next].human && next!==MP.slot){
@@ -1411,19 +2574,24 @@ function startPlayerTurn(pid){
   // income + city population growth
   recomputeIncome();
   p.influence+=p.income;
-  if(!p.human && p.alive) p.influence+=DIFFICULTY[G.diff||"medium"].bonus;   // §13 CPU income cheat
+  if(!p.human && p.alive) p.influence+=playerDiff(p).bonus;                  // §13 CPU income cheat, per-rival
   for(const c of G.cities) if(c.owner===pid){
     let grow=1;                                            // §6.2 natural +1 Listener/turn
     if(c.wellspring) grow+=1;                              // §7.3 L3(a) Wellspring
-    if(p.techs.has("lantern_roads") &&
-       G.cities.some(o=>o!==c && o.owner===pid && cheb(c.x,c.y,o.x,o.y)<=4)) grow+=1;   // connected cities (flame node)
+    // §10.1 Wayshrines — the SHARED slot effect, so every folklore gets it. The Lantern Court's
+    // variant (Lantern Roads) keeps it and adds the Crone on top, exactly as §11 describes.
+    if(hasTech(pid,"wayshrines") &&
+       G.cities.some(o=>o!==c && o.owner===pid && cheb(c.x,c.y,o.x,o.y)<=4)) grow+=1;
     addListeners(c,grow);
   }
-  // Bonfire Moot (§11): units resting on own city tiles heal 3/turn
-  if(G.cities.some(c=>c.owner===pid && c.monument)){
+  // The Monument heals only if this folklore's variant of the Festival slot says so — a FLAG on
+  // the resolved node (Bonfire Moot's `heal:3`), never a check for the variant's id. A second
+  // folklore can put a different Festival variant here and this code does not change.
+  const heal=(nodeFor(pid,"festival")||{}).heal || 0;
+  if(heal>0 && G.cities.some(c=>c.owner===pid && c.monument)){
     for(const u of G.units) if(u.owner===pid){
       const c=cityAt(u.x,u.y);
-      if(c && c.owner===pid) u.hp=Math.min(u.maxhp, u.hp+3);
+      if(c && c.owner===pid) u.hp=Math.min(u.maxhp, u.hp+heal);
     }
   }
   // reset units
@@ -1437,8 +2605,7 @@ function startPlayerTurn(pid){
   }
   recomputeVision(pid);
 
-  // score-mode end check
-  if(G.mode==="score" && G.turn>SCORE_TURN_LIMIT && pid===0){ endByScore(); return; }
+  // (score-mode end check moved to advancePlayer — it was gated on an arbitrary seat, see [30])
 
   renderHUD();
   if(p.human){
@@ -1446,9 +2613,11 @@ function startPlayerTurn(pid){
     if(multiHuman() && !MP.on) showCurtain(pid);   // hot-seat curtain only (same paint, no leak)
     renderHUD(); renderActions(); save();
     if(MP.on) mpPush(false);               // spectators/eliminated players see my turn begin
+    drainRewards();                        // owed level-ups are answered BEFORE you can act
   } else {
-    // run AI then advance automatically
-    setTimeout(()=>{ aiTurn(pid); if(!G.over) advancePlayer(); }, 220);
+    // run the AI turn one visible action at a time, THEN advance (awaited: handing off
+    // mid-simulation would upload a half-played turn to the room)
+    setTimeout(async()=>{ await aiTurnPaced(pid); if(!G.over) advancePlayer(); }, 220);
   }
 }
 
@@ -1478,7 +2647,7 @@ function checkElimination(byPid){
 function showElimBeat(p){
   openModal("","",`<div class="center" style="padding:8px 0">
     <div style="font-size:42px">🕯️</div>
-    <h1 style="font-size:21px;margin:10px 0 4px;line-height:1.35">“The tale of the ${p.name}<br>is no longer told.”</h1>
+    <h1 style="font-size:21px;margin:10px 0 4px;line-height:1.35">“The tale of ${houseOf(p)}<br>is no longer told.”</h1>
     <button class="btn primary" style="width:100%;margin-top:14px" id="beatOk">The telling goes on ▶</button>
   </div>`);
   el("beatOk").onclick=()=>el("scrim").classList.remove("on");
@@ -1498,7 +2667,8 @@ function endByScore(){
 }
 function gameOver(won,byScore,winnerId){
   G.over=true; G.winner=(winnerId!==undefined)? winnerId : (won?0:null);
-  clearSave();
+  recordMatch(won,byScore);                // §39 history — own key, never touches the save blob
+  clearSave(); forgetRoom();               // the telling is over — nothing left to rejoin
   if(MP.on) mpPush(false);                 // broadcast the ending to the other players
   showEndScreen(won,byScore);
 }
@@ -1513,6 +2683,7 @@ function snapshotState(){
     tiles:G.tiles.map(t=>[t.t,t.res,t.lib?1:0,t.story||0]),
     units:G.units,
     cities:G.cities,
+    rewardQueue:G.rewardQueue||[],   // an unanswered level-up must survive a save/handoff
     players:G.players.map(p=>({...p,techs:[...p.techs],revealed:[...p.revealed],visible:[...p.visible]})),
     cam:G.cam
   };
@@ -1521,10 +2692,36 @@ function restoreState(d){
   const tiles=d.tiles.map((a,i)=>({x:i%d.N,y:Math.floor(i/d.N),t:a[0],res:a[1],lib:!!a[2],story:a[3]||null}));
   G={ N:d.N,mode:d.mode,world:d.world||"heartlands",diff:d.diff||"medium",turn:d.turn,current:d.current,
       over:!!d.over,winner:(d.winner!==undefined)?d.winner:null,
-      tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,
+      tiles,units:d.units,cities:d.cities,nextUid:d.nextUid,rewardQueue:d.rewardQueue||[],
       players:d.players.map(p=>({...p,techs:new Set(p.techs),revealed:new Set(p.revealed),visible:new Set(p.visible)})),
       sel:null,moveTiles:null,atkTiles:null, cam:d.cam };
   G.viewer=(d.viewer!==undefined)? d.viewer : G.players.findIndex(p=>p.human);
+  // §7.2 per-city capacity: units serialise by reference so `home` needs no format change, but a
+  // blob written before this pass has none — and a unit with no home counts against no city, i.e.
+  // free army forever. Attach each to its owner's nearest city. `=== undefined` on purpose: null
+  // is a legitimate value (an orphan whose city was taken) and must not be re-homed.
+  for(const u of G.units) if(u.home===undefined){
+    const mine=G.cities.filter(c=>c.owner===u.owner);
+    u.home = mine.length? mine.reduce((a,b)=> cheb(b.x,b.y,u.x,u.y)<cheb(a.x,a.y,u.x,u.y)?b:a).id : null;
+  }
+  // §9/§10 names, same story: blobs written before [29] carry neither. Fill from the pools without
+  // repeating anything already in play, so a resumed save reads like it always had them.
+  for(const c of G.cities) if(!c.name) c.name=cityName();
+  for(const p of G.players) if(!p.house){
+    p.house = HOUSE_NAMES.find(h=>!G.players.some(q=>q.house===h)) || "Wandering";
+  }
+  // §10.2: p.techs now holds SLOT ids. Pre-[40] blobs hold the Lantern Court's variant ids in the
+  // slots those variants occupied — remap, or the owner silently loses the node.
+  const SLOT_ALIAS={ lantern_roads:"wayshrines", bonfire_moot:"festival" };
+  for(const p of G.players){
+    for(const old in SLOT_ALIAS) if(p.techs.has(old)){ p.techs.delete(old); p.techs.add(SLOT_ALIAS[old]); }
+  }
+  // First-contact: a blob written before this pass has no `met`. Seed it SILENTLY from what each
+  // player can currently see — leaving it empty would hand a resumed save a retroactive payout for
+  // every rival it had already found (up to 9 bounties at once).
+  const seeding=G.players.filter(p=>!p.met);
+  seeding.forEach(p=>{ p.met=[]; });
+  seeding.forEach(p=>checkFirstContact(p.id,true));
   recomputeIncome();
 }
 function save(){
@@ -1552,6 +2749,75 @@ function loadSave(){
    snapshot and the next human takes over on their own device. Clients poll every 3s.
    Fog is client-side (trust-the-client, per §14's friend-game stance).               */
 const MP={on:false, host:false, code:null, token:null, slot:-1, version:0, timer:null, settings:null};
+/* Rejoin (§14). MP lived only in memory, so a refresh or a backgrounded tab lost the room token
+   forever — and /api/join answers 409 "that telling already began" once play starts, so there was
+   no way back in. The credentials are now persisted; /api/state already resolves a token to its
+   seat, so rejoining is purely client-side and needs no Pages Function change. */
+/* Device-local room list ([38]). [21] persisted exactly ONE room, so hosting or joining a second
+   silently destroyed the credentials for the first. Now a list, newest first.
+   This is the whole of "see your lobbies": there is no discovery endpoint and deliberately so —
+   a server-side room browser would turn 4-digit codes from friend-game privacy into a public list
+   anyone could walk. Rooms other people host are reachable by code only. */
+const ROOMS_KEY="toltales_rooms_v1", ROOM_KEY="toltales_room_v1", MAX_ROOMS=6;
+function storedRooms(){
+  try{ const a=JSON.parse(localStorage.getItem(ROOMS_KEY));
+       return Array.isArray(a)? a.filter(r=>r && r.code && r.token) : []; }catch(e){ return []; }
+}
+function saveRooms(list){ try{ localStorage.setItem(ROOMS_KEY, JSON.stringify(list.slice(0,MAX_ROOMS))); }catch(e){} }
+(function migrateRoom(){                    // fold the pre-[38] single-room key in once, then drop it
+  try{
+    const r=JSON.parse(localStorage.getItem(ROOM_KEY));
+    if(r && r.code && r.token){
+      const list=storedRooms();
+      if(!list.some(x=>x.code===r.code)){ list.unshift(r); saveRooms(list); }
+    }
+    localStorage.removeItem(ROOM_KEY);
+  }catch(e){}
+})();
+function rememberRoom(){
+  if(!MP.code || !MP.token) return;
+  const list=storedRooms().filter(r=>r.code!==MP.code);
+  list.unshift({code:MP.code, token:MP.token, slot:MP.slot, host:MP.host});
+  saveRooms(list);
+  renderRooms();
+}
+function storedRoom(){ return storedRooms()[0] || null; }   // most recent — kept for existing callers
+function forgetRoom(code){
+  const c=code||MP.code;
+  saveRooms(storedRooms().filter(r=>r.code!==c));
+  renderRooms();
+}
+function renderRooms(){
+  const box=el("mpRooms"); if(!box) return;
+  const list=storedRooms();
+  if(!list.length){
+    box.innerHTML=`<p class="paneNote">No rooms on this device yet. Host one, or join with a friend's code.</p>`;
+    return;
+  }
+  box.innerHTML=list.map(r=>`<div class="roomRow">
+      <span class="rc mono">${r.code}</span>
+      <span class="rl">${r.host?"You host":"You joined"}</span>
+      <button class="btn" data-rejoin="${r.code}">↩ Rejoin</button>
+      <button class="btn rx" data-forget="${r.code}" title="Forget this room">✕</button>
+    </div>`).join("");
+  box.querySelectorAll("[data-rejoin]").forEach(b=>b.onclick=()=>rejoinRoom(b.dataset.rejoin));
+  box.querySelectorAll("[data-forget]").forEach(b=>b.onclick=()=>forgetRoom(b.dataset.forget));
+}
+async function rejoinRoom(code){
+  const r=code? storedRooms().find(x=>x.code===code) : storedRoom();
+  if(!r) return;
+  toast("Rejoining…");
+  const res=await API("state",null,`code=${r.code}&token=${r.token}&since=0`).catch(()=>null);
+  // A dead connection is not a dead room: only discard the token when the SERVER says the room
+  // is gone. Clearing on a network blip would re-create the very lockout this exists to fix.
+  if(!res){ toast("Could not reach the room — try again"); return; }
+  if(res.error){ forgetRoom(r.code); toast(res.error); return; }   // by code: MP.code isn't set yet
+  MP.on=true; MP.host=!!r.host; MP.code=r.code; MP.token=r.token; MP.version=0;
+  if(res.phase!=="playing"){ MP.slot=-1; lobbyLoop(); return; }        // still gathering — back to the lobby
+  if(res.yourSeat===null || res.yourSeat===undefined){ MP.on=false; forgetRoom(r.code); toast("You hold no seat in that telling"); return; }
+  joinerEnter(res);
+  toast(`Rejoined room ${r.code}`);
+}
 async function API(path,body,qs){
   const r=await fetch("/api/"+path+(qs?("?"+qs):""),{
     method:(body!==null&&body!==undefined)?"POST":"GET",
@@ -1605,6 +2871,7 @@ function openJoinEntry(){
     const res=await API("join",{code}).catch(()=>null);
     if(!res || res.error){ toast(res? res.error : "Could not reach the room"); return; }
     MP.on=true; MP.host=false; MP.code=code; MP.token=res.token; MP.version=0;
+    rememberRoom();
     lobbyLoop();
   };
 }
@@ -1618,7 +2885,7 @@ function lobbyRender(res){
              : `<p class="sub">The host begins once the lobby is full.</p>`}
     <button class="btn" style="width:100%;margin-top:8px" id="lobbyLeave">Leave</button>`);
   if(MP.host){ const b=el("lobbyStart"); if(b && full) b.onclick=()=>hostStartOnline(res); }
-  el("lobbyLeave").onclick=()=>{ lobbyHide(); MP.on=false; MP.host=false; clearInterval(MP.timer); };
+  el("lobbyLeave").onclick=()=>{ lobbyHide(); MP.on=false; MP.host=false; clearInterval(MP.timer); forgetRoom(); };
 }
 function lobbyLoop(){
   clearInterval(lobbyTimer);
@@ -1636,19 +2903,21 @@ function lobbyLoop(){
 }
 function hostStartOnline(res){
   const S=res.settings||MP.settings||sel;
-  newGame({folklore:S.folklore,size:S.size,ai:S.ai,mode:S.mode,world:S.world,diff:S.diff,humans:S.humans});
+  // settings travel as {...sel}, so the host's typed House rides along. Joiners cannot name theirs
+  // without a /api/join change — the whole player table comes from this snapshot (§14).
+  newGame({folklore:S.folklore,size:S.size,ai:S.ai,mode:S.mode,world:S.world,diff:S.diff,humans:S.humans,house:S.house});
   const humanSeats=G.players.filter(p=>p.human).map(p=>p.id);   // join order ↔ seat order
   MP.slot=humanSeats[0];
-  G.viewer=MP.slot;
+  G.viewer=MP.slot; rememberRoom();
   API("start",{code:MP.code,token:MP.token,state:snapshotState(),humanSeats}).then(r2=>{
     if(!r2 || r2.error){ toast(r2? r2.error : "Could not start"); return; }
     MP.version=r2.version;
     lobbyHide(); startScreen.classList.remove("on"); el("mClose").style.display="";
-    centerCameraOn(capitalOf(MP.slot));
+    centerCameraOn(homeView(MP.slot));
     renderHUD(); renderActions();
     toast(`Room ${MP.code} — the telling begins`);
     const first=G.players[0];
-    if(!first.human) setTimeout(()=>{ aiTurn(0); if(!G.over) advancePlayer(); },300);
+    if(!first.human) setTimeout(async()=>{ await aiTurnPaced(0); if(!G.over) advancePlayer(); },300);
     mpStartPolling();
   }).catch(()=>toast("Could not start"));
 }
@@ -1656,9 +2925,9 @@ function joinerEnter(res){
   MP.slot=res.yourSeat;
   MP.version=res.version;
   restoreState(res.state);
-  G.viewer=MP.slot;
+  G.viewer=MP.slot; rememberRoom();
   startScreen.classList.remove("on"); el("mClose").style.display="";
-  centerCameraOn(capitalOf(MP.slot));
+  centerCameraOn(homeView(MP.slot));
   renderHUD(); renderActions();
   toast(`You tell the ${G.players[MP.slot].name} tale`);
   if(G.current===MP.slot){
@@ -1679,7 +2948,8 @@ function toast(msg){
 function renderHUD(){
   const p=viewingPlayer();
   el("hudTurn").textContent=G.turn;
-  el("hudFolkName").textContent=p.name;
+  el("hudFolkName").textContent=houseOf(p);
+  el("hudFolkName").title=houseOf(p);
   el("hudFolkName").style.color=p.color;
   el("hudInfluence").textContent=p.influence;
   el("hudInc").textContent="+"+p.income+"/t";
@@ -1691,11 +2961,25 @@ function renderActions(){
   bar.innerHTML="";
   const u=G.sel;
   if(isHumanTurn() && u){
+    if(pendingTarget && G.atkTiles && G.atkTiles.includes(pendingTarget)){
+      const f=previewAttack(u,pendingTarget);
+      bar.appendChild(mkBtn(`⚔ Attack −${f.atkDmg}${f.dies?" ☠":""}`,"primary",
+        ()=>{ const t=pendingTarget; pendingTarget=null; doAttack(u,t); }));
+    }
     if(canCapture(u) && !u.acted){ bar.appendChild(mkBtn("🚩 Take City","primary",()=>doCapture(u))); }
     else if(cityUnder(u)){
       const c=cityUnder(u), left=siegeNeed(c)-((c.convert&&c.convert.by===u.owner)?c.convert.holds:0);
       const b=mkBtn(`Converting… ${left} turn${left>1?"s":""}`,"",null); b.disabled=true; bar.appendChild(b);
     }
+    // §7: reach your own city even while a unit stands on it (cityUnder() is foreign-only)
+    const own=cityAt(u.x,u.y);
+    if(own && own.owner===viewIndex() && u.owner===viewIndex())
+      bar.appendChild(mkBtn(`🏛 ${own.capital?"Capital":"City"}`,"",()=>openCity(own)));
+    // ...and reach the resource under it, for the same reason (see handleTap)
+    const rt=tileAt(u.x,u.y);
+    if(u.owner===viewIndex() && rt.res!==R.NONE)
+      bar.appendChild(mkBtn(`${RESOURCE[rt.res].icon} ${canHarvest(u.x,u.y,viewIndex())?"Harvest":RESOURCE[rt.res].name}`,"",
+        ()=>{ clearSel(); showTileCard(u.x,u.y); }));
     bar.appendChild(mkBtn("Deselect","",()=>clearSel()));
   }
   if(isHumanTurn() && viewingPlayer().kindle>0){
@@ -1716,12 +3000,31 @@ function renderUnitCard(u){
   ctxcard.innerHTML=`
     <h3>${d.icon} ${d.name} ${u.storied?'<span class="pill" style="color:#ffd75e">✦ Storied</span>':''}${u.raft?'<span class="pill">🛶 Raft</span>':''}</h3>
     <div class="row" style="font-style:italic">“${d.tagline}”</div>
-    <div class="row"><span>Owner</span><b style="color:${G.players[u.owner].color}">${G.players[u.owner].name}</b></div>
+    <div class="row"><span>Owner</span><b style="color:${G.players[u.owner].color}">${houseOf(G.players[u.owner])}</b></div>
     <div class="row"><span>Attack / Defense</span><b>${unitAtk(u)} / ${unitDef(u)}</b></div>
     <div class="row"><span>Move / Range</span><b>${unitMovePts(u)} / ${unitRange(u)}</b></div>
     <div class="row"><span>${d.sig}</span></div>
     <div class="row"><span>Status</span><b>${u.acted?'done':(u.movesLeft>0?'ready':'moved')}</b></div>
     <div class="hpbar"><i style="width:${Math.max(0,100*u.hp/u.maxhp)}%;background:${u.hp/u.maxhp>.5?'#57d38c':(u.hp/u.maxhp>.25?'#ffd75e':'#ff6b6b')}"></i></div>`;
+}
+// §9.1/§9.2 forecast: what the trade costs before you commit to it. Naming *why* a counter is
+// absent teaches the fog/range gate — the Farlight exploit the spec wants playtested first.
+function renderAttackCard(att,def){
+  const f=previewAttack(att,def), A=UNITS[att.type], D=UNITS[def.type];
+  const red="#ff6b6b", green="#57d38c", gold="#ffd75e";
+  ctxcard.style.display="block";
+  ctxcard.innerHTML=`
+    <h3>⚔ ${A.icon} vs ${D.icon} ${D.name}</h3>
+    <div class="row"><span>You deal</span><b style="color:${red}">−${f.atkDmg}</b></div>
+    <div class="row"><span>${D.name}</span><b style="color:${f.kills?green:"#e8dcc0"}">${
+      f.kills? "destroyed ✦" : `${def.hp} → ${f.targetHpAfter}`}</b></div>
+    <div class="row"><span>Counter</span><b style="color:${f.counter?red:green}">${
+      f.counter? "−"+f.counter : "none"}</b></div>
+    ${f.noCounterWhy? `<div class="row" style="font-style:italic;font-size:11px">${f.noCounterWhy}</div>` : ""}
+    <div class="row"><span>${A.name}</span><b style="color:${f.dies?red:"#e8dcc0"}">${
+      f.dies? "you die" : `${att.hp} → ${f.selfHpAfter}`}</b></div>
+    ${f.kills&&!att.storied? `<div class="row" style="color:${gold};font-size:11px">✦ Storied: full heal, +5 max HP, +1 Kindle</div>`:""}
+    <div class="row" style="font-size:11px;color:#8ea0b5">Tap again to attack</div>`;
 }
 function showTileCard(x,y){
   const t=tileAt(x,y), ter=TERRAIN[t.t];
@@ -1733,7 +3036,7 @@ function showTileCard(x,y){
     if(canHarvest(x,y,viewIndex())){
       html+=`<button class="btn primary" style="width:100%;margin-top:8px" id="hv">Harvest +${rd.listeners} Listeners</button>`;
     } else if(!viewingPlayer().techs.has(rd.tech)){
-      html+=`<div class="row"><span>Needs tech</span><b>${TECHS[rd.tech].name}</b></div>`;
+      html+=`<div class="row"><span>Needs tech</span><b>${nodeFor(viewIndex(),rd.tech).name}</b></div>`;
     } else {
       html+=`<div class="row" style="color:#8ea0b5">Not in your territory</div>`;
     }
@@ -1745,12 +3048,24 @@ function showTileCard(x,y){
 }
 
 /* --- generic modal --- */
-function openModal(title,sub,bodyHTML){
+// `locked` = a decision the player owes the game. No × and no backdrop dismiss, because tapping
+// outside used to throw away a level-up reward with no way to get it back.
+let modalLocked=false;
+function openModal(title,sub,bodyHTML,locked){
+  modalLocked=!!locked;
   el("mTitle").textContent=title; el("mSub").textContent=sub||"";
   el("mBody").innerHTML=bodyHTML; el("scrim").classList.add("on");
+  el("mClose").style.display = modalLocked? "none" : "";
 }
-el("mClose").onclick=()=>el("scrim").classList.remove("on");
-el("scrim").addEventListener("click",e=>{ if(e.target===el("scrim")) el("scrim").classList.remove("on"); });
+function closeModal(force){
+  if(modalLocked && !force) return;
+  modalLocked=false;
+  el("mClose").style.display="";
+  el("scrim").classList.remove("on");
+  drainRewards();                 // anything that could not be shown while this was open
+}
+el("mClose").onclick=()=>closeModal();
+el("scrim").addEventListener("click",e=>{ if(e.target===el("scrim")) closeModal(); });
 
 /* --- lore tree modal: §10.3 hub-and-fans, positions computed from constants --- */
 el("btnTech").onclick=buildTechModal;
@@ -1782,7 +3097,7 @@ function buildTechModal(){
     edges+=`<line x1="${from[0].toFixed(1)}" y1="${from[1].toFixed(1)}" x2="${x.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#c9a456" stroke-opacity=".4" stroke-width="2"/>`;
   }
   for(const id in TECHS){
-    const t=TECHS[id], [x,y]=P[id];
+    const t=nodeFor(viewIndex(),id), [x,y]=P[id];   // resolved: your folklore's variant of this slot
     const owned=p.techs.has(id), avail=canResearch(viewIndex(),id), cost=techCost(viewIndex(),id);
     const fill= owned? "#ffd75e" : avail? "#2f3a63" : "#1b2138";
     const stroke= owned? "#c9a456" : avail? "#ffd75e" : "#3a4468";
@@ -1804,17 +3119,17 @@ function buildTechModal(){
       <div style="font-weight:800;white-space:nowrap">📜 ${p.influence}</div>
       <button class="btn primary" id="techUnlock" style="flex:1" disabled>Unlock</button>
     </div>`;
-  openModal("Lore","Four old ways fan out from the Ancestral Lore. Flame-ringed nodes are the Lantern Court's own.",html);
+  openModal("Research Tree",`Four old ways fan out from the Ancestral Lore. Flame-ringed nodes are the ${p.name}'s own.`,html);
   el("mBody").querySelectorAll(".tnode").forEach(n=>{
     n.onclick=()=>{ selTech=n.dataset.tech; buildTechModal(); };
   });
   if(selTech && TECHS[selTech]){
-    const t=TECHS[selTech], owned=p.techs.has(selTech), avail=canResearch(viewIndex(),selTech), cost=techCost(viewIndex(),selTech);
+    const t=nodeFor(viewIndex(),selTech), owned=p.techs.has(selTech), avail=canResearch(viewIndex(),selTech), cost=techCost(viewIndex(),selTech);
     el("techDetail").innerHTML=`<b style="color:#eef2f7">${t.icon} ${t.name}</b>`
-      +(t.flame?` <span style="color:#ff9138">— Lantern Court flame lore</span>`:"")
+      +(t.flame?` <span style="color:#ff9138">— ${p.name} flame lore</span>`:"")
       +`<br>${t.blurb}`
       +(owned?` <span style="color:#57d38c">(known)</span>`
-        :(avail?"":`<br><span>needs ${TECHS[t.req].name}</span>`));
+        :(avail?"":`<br><span>needs ${nodeFor(viewIndex(),t.req).name}</span>`));
     const b=el("techUnlock");
     b.disabled=!(avail && p.influence>=cost);
     b.textContent= owned? "Known" : `Unlock — 📜${cost}`;
@@ -1830,23 +3145,24 @@ function openCity(city){
   const built=Object.keys(BUILDINGS).filter(k=>city[k]);
   let html=`<div class="row" style="display:flex;gap:14px;color:#8ea0b5;font-size:12px;margin-bottom:8px;flex-wrap:wrap">
      <span>Level <b style="color:#eef2f7">${city.level}</b></span>
-     <span>Listeners <b style="color:#eef2f7">${city.listeners}/${city.level+1}</b></span>
+     <span>Listeners <b style="color:#eef2f7">${city.listeners}/${levelNeed(city.level)}</b></span>
      <span>Income <b style="color:#ffd75e">📜${cityIncome(city)}</b></span>
-     <span>Army <b style="color:#eef2f7">${G.units.filter(u=>u.owner===viewIndex()).length}/${armyCap(viewIndex())}</b></span>
+     <span>Army <b style="color:${canTrainAt(city)?"#eef2f7":"#ff6b6b"}">${cityUnitCount(city)}/${cityCap(city)}</b></span>
+     <span style="color:#8ea0b5">Empire ${G.units.filter(u=>u.owner===viewIndex()).length}/${armyCap(viewIndex())}</span>
      ${city.wall?'<span style="color:#ffd75e">Walled</span>':''}${city.capital?'<span style="color:#ffd75e">★Capital</span>':''}
-     ${built.map(k=>`<span>${BUILDINGS[k].icon} ${BUILDINGS[k].name}</span>`).join("")}
+     ${built.map(k=>{ const b=buildingInfo(city.owner,k); return `<span>${b.icon} ${b.name}</span>`; }).join("")}
    </div>`;
   if(occupied){
     html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">Tile occupied — move the unit off before training a new one.</div>`;
   }
-  if(!canFieldMore(viewIndex())){
-    html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">Army at capacity (§7.2: city level + 1 per city). Level cities up to field more.</div>`;
+  if(!canTrainAt(city)){
+    html+=`<div class="d" style="color:#8ea0b5;margin-bottom:8px">This city is at capacity — it keeps ${cityUnitCount(city)} of its ${cityCap(city)} characters in the field. Level it up, or wait for one of its own to fall.</div>`;
   }
   html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:6px 0">TRAIN</div><div class="grid">`;
-  for(const key of Object.keys(UNITS)){
+  for(const key of rosterOfPlayer(viewIndex())){          // §10.2: your folklore's roster only
     const d=UNITS[key], cost=trainCost(city,d);
     const locked = d.tech && !p.techs.has(d.tech);
-    const afford = p.influence>=cost && !occupied && canFieldMore(viewIndex());
+    const afford = p.influence>=cost && !occupied && canTrainAt(city);
     const cls = locked?"locked":(afford?"":"locked");
     html+=`<div class="card ${cls}" data-u="${key}">
       <div class="t"><span>${d.icon} ${d.name}</span><span class="cost">📜${cost}</span></div>
@@ -1859,7 +3175,7 @@ function openCity(city){
   if(options.length){
     html+=`<div style="font-weight:800;color:#8ea0b5;font-size:12px;margin:10px 0 6px">BUILD</div><div class="grid">`;
     for(const key of options){
-      const b=BUILDINGS[key], done=!!city[key];
+      const b=buildingInfo(viewIndex(),key), done=!!city[key];   // variant may rename it
       const cls=done?"owned":(p.influence>=BUILD_COST?"":"locked");
       html+=`<div class="card ${cls}" data-b="${key}">
         <div class="t"><span>${b.icon} ${b.name}</span>${done?'<span class="pill" style="color:#57d38c">✓</span>':`<span class="cost">📜${BUILD_COST}</span>`}</div>
@@ -1868,14 +3184,14 @@ function openCity(city){
     }
     html+="</div>";
   }
-  openModal((city.capital?"★ ":"")+"City", "", html);
+  openModal((city.capital?"★ ":"")+cityLabel(city), "", html);
   el("mBody").querySelectorAll(".card[data-u]").forEach(card=>{
     card.onclick=()=>{
       const key=card.dataset.u, d=UNITS[key], cost=trainCost(city,d);
       if(d.tech && !p.techs.has(d.tech)) return;
       if(unitAt(city.x,city.y)) return;
-      if(p.influence<cost || !canFieldMore(viewIndex())) return;
-      p.influence-=cost; spawnUnit(key,city.x,city.y,viewIndex());
+      if(p.influence<cost || !canTrainAt(city)) return;
+      p.influence-=cost; spawnUnit(key,city.x,city.y,viewIndex(),city.id);
       recomputeVision(viewIndex()); renderHUD(); el("scrim").classList.remove("on");
       toast(`Trained ${d.name}`);
     };
@@ -1886,7 +3202,7 @@ function openCity(city){
       if(city[key] || p.influence<BUILD_COST) return;
       p.influence-=BUILD_COST; city[key]=true;
       recomputeIncome(); recomputeVision(viewIndex()); renderHUD(); save();
-      toast(`${BUILDINGS[key].name} built`);
+      toast(`${buildingInfo(viewIndex(),key).name} built`);
       openCity(city);
     };
   });
@@ -1895,18 +3211,52 @@ function openCity(city){
 /* --- §7.3 level-up reward ladder. Row = level reached − 1; row 5 repeats forever.
        L3(c) City Wall is the approved resolution of the walls-source gap; the L5+ (a)
        Legend-unit slot is deferred to slice 2 and stands in as +2 Influence/turn. --- */
+/* §7.3 rewards are QUEUED, not shown on the spot. addListeners can carry a city up several levels
+   in one call, and several cities can level in the same turn; each called openModal directly, so
+   every modal but the last was overwritten before it could be answered and those rewards were
+   silently lost. Measured before this change: 3 levels gained → 3 modals opened → 1 answerable.
+   The queue also delivers the reported symptom — a reward earned at a moment it could not be shown
+   is now presented before you next act, instead of vanishing. */
 function offerLevelReward(city){
-  const row=Math.min(city.level-1,5);
+  G.rewardQueue = G.rewardQueue || [];
+  // The LEVEL is queued with the city, not read back off it when the card is finally shown. A city
+  // can climb several levels before the first modal is answered, and city.level would by then be
+  // the final one — a 1→4 jump offered the level-2 row, then the level-4 row twice, skipping
+  // level 3 entirely. Each level-up owes its own rung of the §7.3 ladder.
+  G.rewardQueue.push({c:city.id, lv:city.level});
+  drainRewards();
+}
+function drainRewards(){
+  if(!G || !G.rewardQueue || !G.rewardQueue.length) return;
+  // drop anything that no longer resolves to a human-owned city (captured, folklore eliminated)
+  G.rewardQueue = G.rewardQueue.filter(q=>{
+    const c=G.cities.find(x=>x.id===q.c);
+    return c && c.owner>=0 && G.players[c.owner] && G.players[c.owner].human;
+  });
+  if(!G.rewardQueue.length) return;
+  if(el("scrim").classList.contains("on")) return;      // busy — closeModal() re-drains
+  if(el("curtain").classList.contains("on")) return;    // hot-seat: wait for the right pair of eyes
+  const q=G.rewardQueue.find(q=>{
+    const c=G.cities.find(x=>x.id===q.c);
+    return c && c.owner===viewIndex();
+  });
+  if(!q) return;                                        // queued for another seat; theirs to answer
+  showLevelReward(G.cities.find(x=>x.id===q.c), q.lv);
+}
+function showLevelReward(city,atLevel){
+  const lv=atLevel||city.level;
+  const row=Math.min(lv-1,5);
   let opts;
   if(row<=1){
-    const ok=canFieldMore(city.owner) && !unitAt(city.x,city.y);
+    const ok=canTrainAt(city) && !unitAt(city.x,city.y);
     opts=[["+1 Influence/turn","Steady income from this city.","inc1"],
           ["Free Wanderer","The cheapest character, mustered here.","freeunit",!ok],
           ["Wandering Scout","Reveal ~25 tiles along a random path.","scout"]];
   } else if(row===2){
     const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
     opts=[["Whispered Lore","Learn a random reachable lore node, free.","freelore",!pool.length],
-          ["Kindle Charge","+1 use of the Lantern Court's special move.","kindle"],
+          [`Kindle Charge`,`+1 use of the Lantern Court's special move (max ${KINDLE_CAP}).`,"kindle",
+           (G.players[city.owner].kindle||0)>=KINDLE_CAP],
           ["+1 Influence/turn","Steady income from this city.","inc1"]];
   } else if(row===3){
     opts=[ city.capital? ["Wellspring","+1 Listener/turn. (Capital only.)","wellspring"]
@@ -1921,10 +3271,17 @@ function offerLevelReward(city){
           ["+2 Influence/turn","Steady income from this city.","inc2"]];
   }
   const html=`<div class="grid">${opts.map(o=>`<div class="card ${o[3]?"locked":""}" data-r="${o[2]}"><div class="t">${o[0]}</div><div class="d">${o[1]}</div></div>`).join("")}</div>`;
-  openModal(`${city.capital?"★ ":""}City reached level ${city.level}!`,"Choose a reward",html);
+  const queued=(G.rewardQueue||[]).length;
+  openModal(`${city.capital?"★ ":""}${cityLabel(city)} reached level ${lv}!`,
+            queued>1? `Choose a reward — ${queued-1} more waiting` : "Choose a reward", html, true);
   el("mBody").querySelectorAll(".card").forEach(card=>{
     if(card.classList.contains("locked")) return;
-    card.onclick=()=>{ applyReward(city,card.dataset.r); el("scrim").classList.remove("on"); };
+    card.onclick=()=>{
+      const i=(G.rewardQueue||[]).findIndex(q=>q.c===city.id && q.lv===lv);
+      if(i>=0) G.rewardQueue.splice(i,1);      // answered — take it off before the next one shows
+      applyReward(city,card.dataset.r);
+      closeModal(true);                        // force: the lock is exactly what we just satisfied
+    };
   });
 }
 function applyReward(city,r){
@@ -1932,16 +3289,16 @@ function applyReward(city,r){
   if(r==="inc1") city.bonusIncome=(city.bonusIncome||0)+1;
   else if(r==="inc2") city.bonusIncome=(city.bonusIncome||0)+2;
   else if(r==="freeunit"){
-    if(canFieldMore(city.owner) && !unitAt(city.x,city.y)) spawnUnit("wanderer",city.x,city.y,city.owner);
+    if(canTrainAt(city) && !unitAt(city.x,city.y)) spawnUnit("wanderer",city.x,city.y,city.owner,city.id);
     else p.influence+=2;
   }
   else if(r==="scout") scoutPath(city);
   else if(r==="freelore"){
     const pool=Object.keys(TECHS).filter(id=>canResearch(city.owner,id));
     if(pool.length){ const id=pool[ri(pool.length)]; p.techs.add(id);
-      if(city.owner===0) toast(`Whispered lore: ${TECHS[id].name}`); }
+      if(city.owner===viewIndex()) toast(`Whispered lore: ${nodeFor(city.owner,id).name}`); }
   }
-  else if(r==="kindle") p.kindle=(p.kindle||0)+1;
+  else if(r==="kindle"){ if(!grantKindle(p,1)) p.influence+=2; }   // at cap: don't eat the pick
   else if(r==="wellspring") city.wellspring=true;
   else if(r==="pop2") addListeners(city,2);
   else if(r==="shrine") city.shrine=true;
@@ -1951,14 +3308,53 @@ function applyReward(city,r){
   recomputeIncome(); recomputeVision(city.owner); renderHUD(); renderActions();
 }
 // L1(c): a phantom scout wanders ~12 steps from the city, revealing as it goes (~25 tiles)
-function scoutPath(city){
-  const p=G.players[city.owner];
-  let x=city.x, y=city.y, ang=rnd()*Math.PI*2;
-  for(let s=0;s<12;s++){
+/* §7.3 L1 "Wandering Scout". The path is drawn from the seeded RNG up front — identical to the
+   old instant version — then walked a tile at a time so you actually watch the character wander.
+   The reveal is applied as it goes, and the finally block re-applies the WHOLE path no matter how
+   the walk ends, so an interrupted animation can never leave the fog half-lifted. */
+const SCOUT_STEPS=12;   // step delay is SET.scoutStep — adjustable in Settings ([39]); 0 = instant
+function scoutPathTiles(city){
+  const out=[]; let x=city.x, y=city.y, ang=rnd()*Math.PI*2;
+  for(let s=0;s<SCOUT_STEPS;s++){
     ang+=(rnd()-.5)*1.2;
     x=Math.max(0,Math.min(G.N-1,Math.round(x+Math.cos(ang))));
     y=Math.max(0,Math.min(G.N-1,Math.round(y+Math.sin(ang))));
-    for(const[dx,dy]of NB8.concat([[0,0]])) if(inb(x+dx,y+dy)) p.revealed.add(idx(x+dx,y+dy));
+    out.push([x,y]);
+  }
+  return out;
+}
+function revealAround(p,x,y){
+  for(const[dx,dy]of NB8.concat([[0,0]])) if(inb(x+dx,y+dy)){
+    const k=idx(x+dx,y+dy);
+    p.revealed.add(k);
+    if(scoutSeen) scoutSeen.add(k);      // only non-null during a live walk; the instant path skips it
+  }
+}
+function scoutPath(city){
+  const p=G.players[city.owner];
+  const path=scoutPathTiles(city);
+  // only the player actually looking at the board gets the walk; everyone else resolves instantly
+  if(!p.human || city.owner!==viewIndex() || scoutWalker || SET.scoutStep<=0){
+    for(const[x,y] of path) revealAround(p,x,y);   // ...and so does "instant" in Settings
+    return;
+  }
+  walkScout(p,path);                       // fire-and-forget: applyReward stays synchronous
+}
+async function walkScout(p,path){
+  scoutWalker={x:path[0][0], y:path[0][1]};
+  scoutSeen=new Set(); scoutSeenFor=p.id; scoutSkip=false;
+  try{
+    for(const[x,y] of path){
+      scoutWalker.x=x; scoutWalker.y=y;
+      revealAround(p,x,y);
+      lookAtIfOffscreen(x,y);
+      if(scoutSkip) break;                         // tapping drops the rest of the walk
+      await sleep(SET.scoutStep);
+    }
+  } finally {
+    for(const[x,y] of path) revealAround(p,x,y);   // the reveal is owed regardless
+    scoutWalker=null; scoutSeen=null; scoutSeenFor=-1; scoutSkip=false;
+    save();
   }
 }
 
@@ -1981,15 +3377,15 @@ el("btnMenu").onclick=()=>openModal("Menu","",`
   <button class="btn" style="width:100%;margin-bottom:8px" id="mm_center">Center on capital</button>
   <button class="btn" style="width:100%;margin-bottom:8px" id="mm_save">Save now</button>
   <button class="btn" style="width:100%" id="mm_new">New game…</button>`) || setTimeout(()=>{
-    el("mm_center").onclick=()=>{ centerCameraOn(capitalOf(viewIndex())); el("scrim").classList.remove("on"); };
+    el("mm_center").onclick=()=>{ centerCameraOn(homeView(viewIndex())); el("scrim").classList.remove("on"); };
     el("mm_save").onclick=()=>{ save(); toast("Saved"); };
     el("mm_new").onclick=()=>{ MP.on=false; MP.host=false; clearInterval(MP.timer); clearInterval(lobbyTimer);
-      el("scrim").classList.remove("on"); startScreen.classList.add("on"); renderHUD?.(); };
+      el("scrim").classList.remove("on"); openMenu(); renderHUD?.(); };
   },0);
 
 /* --- end screen --- */
 function showEndScreen(won,byScore){
-  const rows=G.players.map(p=>({name:p.name,color:p.color,score:computeScore(p),alive:p.alive}))
+  const rows=G.players.map(p=>({name:houseOf(p),color:p.color,score:computeScore(p),alive:p.alive}))
     .sort((a,b)=>b.score-a.score);
   const html=`
     <div class="center">
@@ -2000,46 +3396,305 @@ function showEndScreen(won,byScore){
     </div>`;
   openModal("","",html);
   el("mClose").style.display="none";
-  el("againBtn").onclick=()=>{ el("mClose").style.display=""; el("scrim").classList.remove("on"); startScreen.classList.add("on"); };
+  el("againBtn").onclick=()=>{ el("mClose").style.display=""; el("scrim").classList.remove("on"); openMenu(); };
 }
 
 /* ------------------------------ START SCREEN ----------------------------- */
 const startScreen=el("startScreen");
-let sel={folklore:"lantern_court",size:12,ai:1,mode:"dom",world:"heartlands",diff:"medium",humans:1};
+// rivals[i] = per-CPU overrides. folklore "random" and diff null both mean "use the default",
+// so the common case stays one tap and nothing is written until you actually customise a rival.
+let sel={folklore:"lantern_court",size:12,ai:1,mode:"dom",world:"heartlands",diff:"medium",humans:1,rivals:[]};
+let rivalsOpen=false;
+const MODE_BLURB={
+  dom:"Last folklore standing wins. Lose every city and your tale ends — even if your army survives.",
+  score:`Highest score when turn ${SCORE_TURN_LIMIT} ends. Cities, levels, lore and rivals destroyed all count.`,
+  endless:"No win condition. The telling continues for as long as you want to play it."
+};
+const DIFF_BLURB=(d)=>{
+  const D=DIFFICULTY[d]||DIFFICULTY.medium;
+  return `Each rival draws +${D.bonus} Influence a turn${D.freeTech?", and starts with a free lore node":""}.`
+       + " Applies to any rival you haven't given its own setting.";
+};
+// Only playable folklores appear here — mirrors are an auto-assigned identity pool, not choices.
 function buildFolkGrid(){
   const g=el("folkGrid"); g.innerHTML="";
-  FOLKLORES.forEach(t=>{
+  const choosable=FOLKLORES.filter(t=>t.playable);
+  if(!choosable.some(t=>t.id===sel.folklore)) sel.folklore=choosable[0].id;
+  choosable.forEach(t=>{
     const d=document.createElement("div"); d.className="folk"+(t.id===sel.folklore?" on":"");
     d.innerHTML=`<div class="dot" style="background:${t.color}"></div><div class="n">${t.name}</div><div class="s">${t.tagline}</div>`;
-    d.onclick=()=>{ sel.folklore=t.id; buildFolkGrid(); };
+    d.onclick=()=>{ sel.folklore=t.id; buildFolkGrid(); refreshNewPane(); };
     g.appendChild(d);
   });
 }
+// §10: the House is autogenerated but the player owns it. Math.random, not the seeded ri() —
+// this runs before newGame calls srand(), and the map draw must not depend on how many times
+// someone pressed 🎲.
+function rollHouse(){
+  sel.house=HOUSE_NAMES[Math.floor(Math.random()*HOUSE_NAMES.length)];
+  el("houseName").value=sel.house;
+}
+el("houseRoll").onclick=rollHouse;
+el("houseName").oninput=()=>{ sel.house=el("houseName").value; };
+rollHouse();
+
+/* ---- per-rival folklore + difficulty ([33]) --------------------------------
+   §2 already allows the host to assign a CPU's folklore. Per-rival DIFFICULTY amends §13, which
+   said difficulty applies to all CPUs uniformly — recorded in the spec as §18.8.
+   Collapsed by default: nine rivals x two dropdowns is far too much UI to open a phone screen on,
+   and the overwhelmingly common case is "all of them, the same". */
+function syncRivals(){
+  while(sel.rivals.length<sel.ai) sel.rivals.push({folklore:"random",diff:null});
+  sel.rivals.length=sel.ai;
+  // One folklore, one teller. Yours wins over a rival's; the first rival wins over a later one.
+  // newGame already falls back to random on a clash, but leaving it in `sel` would show two rivals
+  // both claiming a folklore only one of them can have.
+  const claimed=new Set([sel.folklore]);
+  sel.rivals.forEach(r=>{
+    if(r.folklore==="random") return;
+    if(claimed.has(r.folklore)) r.folklore="random"; else claimed.add(r.folklore);
+  });
+}
+function rivalSummary(){
+  const named=sel.rivals.filter(r=>r.folklore!=="random").length;
+  const tuned=sel.rivals.filter(r=>r.diff).length;
+  if(!named && !tuned) return `${sel.ai} rival${sel.ai>1?"s":""} — random folklores, ${sel.diff}`;
+  const bits=[];
+  if(named) bits.push(`${named} assigned`);
+  if(tuned) bits.push(`${tuned} with own difficulty`);
+  return `${sel.ai} rival${sel.ai>1?"s":""} — ${bits.join(", ")}`;
+}
+function renderRivals(){
+  syncRivals();
+  const box=el("rivalBox");
+  if(!rivalsOpen){
+    box.innerHTML=`<div class="rivalHead"><span class="sum">${rivalSummary()}</span>
+      <button class="btn" id="rvOpen">Customise</button></div>`;
+    el("rvOpen").onclick=()=>{ rivalsOpen=true; renderRivals(); };
+    return;
+  }
+  // The human's own pick is off the table; every other folklore (mirrors included) is a valid
+  // assignment, since mirrors ARE the CPU identity pool (authoring §2.1).
+  const opts=FOLKLORES.filter(f=>f.id!==sel.folklore);
+  let html=`<div class="rivalHead"><span class="sum">${rivalSummary()}</span>
+    <button class="btn" id="rvReset">Reset</button><button class="btn" id="rvClose">Done</button></div>`;
+  sel.rivals.forEach((r,i)=>{
+    const col=(FOLKLORES.find(f=>f.id===r.folklore)||{}).color||"#5a6478";
+    html+=`<div class="rival"><span class="n">${i+1}</span><span class="dot" style="background:${col}"></span>
+      <select data-i="${i}" data-k="folklore">
+        <option value="random"${r.folklore==="random"?" selected":""}>Random folklore</option>
+        ${opts.map(f=>`<option value="${f.id}"${r.folklore===f.id?" selected":""}>${f.name}</option>`).join("")}
+      </select>
+      <select data-i="${i}" data-k="diff">
+        <option value=""${!r.diff?" selected":""}>Default (${sel.diff})</option>
+        ${Object.keys(DIFFICULTY).map(d=>`<option value="${d}"${r.diff===d?" selected":""}>${d[0].toUpperCase()+d.slice(1)}</option>`).join("")}
+      </select></div>`;
+  });
+  box.innerHTML=html;
+  el("rvClose").onclick=()=>{ rivalsOpen=false; renderRivals(); };
+  el("rvReset").onclick=()=>{ sel.rivals=sel.rivals.map(()=>({folklore:"random",diff:null})); renderRivals(); };
+  box.querySelectorAll("select").forEach(s=>{
+    s.onchange=()=>{
+      const r=sel.rivals[+s.dataset.i];
+      if(s.dataset.k==="folklore") r.folklore=s.value;
+      else r.diff=s.value||null;
+      // two rivals cannot tell the same folklore — clear the clash rather than silently rerolling
+      if(s.dataset.k==="folklore" && s.value!=="random")
+        sel.rivals.forEach((o,j)=>{ if(j!==+s.dataset.i && o.folklore===s.value) o.folklore="random"; });
+      renderRivals();
+    };
+  });
+}
+// Captions: say what the chosen option actually does, instead of making the name carry it.
+function renderCaps(){
+  const n=sel.size;
+  el("capSize").textContent=`${n} × ${n} — ${n*n} tiles`;
+  const w=WORLDS[sel.world];
+  el("capWorld").textContent = w? `${w.tagline}. ${w.landPct}% land${w.twist?` · twist: ${w.twist}`:""}.`
+                                : "A standard world, drawn at random when the match begins.";
+  el("capMode").textContent=MODE_BLURB[sel.mode]||"";
+  el("capDiff").textContent=DIFF_BLURB(sel.diff);
+}
+function refreshNewPane(){ renderCaps(); renderRivals(); }
 function wireSeg(id,key,cast){
   el(id).querySelectorAll("button").forEach(b=>{
     b.onclick=()=>{ el(id).querySelectorAll("button").forEach(x=>x.classList.remove("on")); b.classList.add("on");
-      sel[key]=cast(b.dataset.v); };
+      sel[key]=cast(b.dataset.v); syncSeatLimits(); refreshNewPane();
+      b.scrollIntoView({block:"nearest",inline:"nearest"}); };   // rows scroll now — keep the pick in view
   });
+}
+// §2 caps folklores in play at 10, so CPU counts that would overflow the table are greyed out
+// rather than silently clamped inside newGame — the player sees the ceiling they're hitting.
+function syncSeatLimits(){
+  const maxAI=Math.max(1, Math.min(FOLKLORES.length,MAX_SEATS) - sel.humans);
+  el("segAI").querySelectorAll("button").forEach(b=>{
+    const over=Number(b.dataset.v)>maxAI;
+    b.disabled=over; b.style.opacity=over?".3":"";
+  });
+  if(sel.ai>maxAI){                                   // snap the selection down to the new ceiling
+    sel.ai=maxAI;
+    el("segAI").querySelectorAll("button").forEach(x=>x.classList.remove("on"));
+    const t=el("segAI").querySelector(`button[data-v="${maxAI}"]`);
+    if(t) t.classList.add("on");
+  }
+}
+/* ---- menu router ([32]) ----------------------------------------------------
+   The start screen used to be one long scroll holding every option at once. It is now a stack of
+   panes; exactly one carries .on. Everything keeps its original element id, so all the existing
+   wiring (btnStart, btnHost, segs, folkGrid…) is untouched by the restructure. */
+function goPane(id){
+  document.querySelectorAll("#startScreen .pane").forEach(s=>s.classList.toggle("on", s.id===id));
+  el("startScreen").querySelector(".modal").scrollTop=0;
+}
+document.querySelectorAll("#startScreen [data-go]").forEach(b=>{
+  b.onclick=()=>goPane(b.dataset.go);
+});
+// Re-read anything that can change while a game is running, then show the menu.
+function refreshMenu(){
+  const b=el("btnContinue"), s=el("resumeSub");
+  // Resume stays visible and goes dim instead of disappearing — a row that vanishes makes the
+  // whole menu jump, and "why is it missing" is a worse question than "why is it greyed out".
+  if(hasSave()){ b.disabled=false; s.textContent="Continue your telling"; }
+  else{ b.disabled=true; s.textContent="No telling in progress"; }
+  renderRooms(); renderSettings(); renderStats(); renderLore();
+}
+function openMenu(pane){
+  startScreen.classList.add("on");
+  refreshMenu();
+  goPane(pane||"paneMain");
+}
+
+/* ---- Settings ([39]) ---- */
+const SET_ROWS=[
+  {k:"aiStep",   label:"Enemy turn speed", kind:"seg",
+   opts:[["Instant",0],["Fast",240],["Normal",420],["Slow",700]],
+   cap:v=>v===0? "Enemy turns resolve at once." : `${v}ms between visible enemy actions.`},
+  {k:"scoutStep",label:"Scout walk speed", kind:"seg",
+   opts:[["Instant",0],["Fast",180],["Normal",300],["Slow",480]],
+   cap:v=>v===0? "The scout reveals its path immediately." : `${v}ms a step — ${(SCOUT_STEPS*v/1000).toFixed(1)}s for the full walk.`},
+  {k:"tapSlop",  label:"Tap sensitivity", kind:"seg",
+   opts:[["Precise",8],["Normal",14],["Forgiving",22]],
+   cap:v=>`A touch may drift ${v}px and still count as a tap, not a drag.`},
+  {k:"forecast", label:"Combat forecast", kind:"bool",
+   cap:v=>v? "Tap an enemy to see the trade, tap again to commit."
+           : "One tap attacks immediately — no confirmation."},
+  {k:"gauge",    label:"Listener gauge",  kind:"bool",
+   cap:v=>v? "Your cities show progress to the next level." : "Hidden; the city panel still has the numbers."},
+];
+function renderSettings(){
+  const b=el("setBody"); if(!b) return;
+  b.innerHTML=SET_ROWS.map(r=>{
+    const v=SET[r.k];
+    const ctl = r.kind==="bool"
+      ? `<div class="seg" data-k="${r.k}"><button data-v="1" class="${v?"on":""}">On</button><button data-v="0" class="${v?"":"on"}">Off</button></div>`
+      : `<div class="seg" data-k="${r.k}">${r.opts.map(([n,val])=>`<button data-v="${val}" class="${v===val?"on":""}">${n}</button>`).join("")}</div>`;
+    return `<div class="field"><label>${r.label}</label>${ctl}</div><div class="cap">${r.cap(v)}</div>`;
+  }).join("") + `<button class="btn" id="setReset" style="width:100%;margin-top:8px">Reset to defaults</button>`;
+  b.querySelectorAll(".seg").forEach(seg=>{
+    seg.querySelectorAll("button").forEach(btn=>{
+      btn.onclick=()=>{
+        const row=SET_ROWS.find(r=>r.k===seg.dataset.k);
+        SET[row.k] = row.kind==="bool" ? btn.dataset.v==="1" : Number(btn.dataset.v);
+        saveSettings(); renderSettings();
+      };
+    });
+  });
+  el("setReset").onclick=()=>{ SET={...SETTINGS_DEFAULTS}; saveSettings(); renderSettings(); };
+}
+
+/* ---- Stats ([39]) ----
+   One row per finished telling, in its own key so it can never leak into a save or the netcode
+   blob. §8.5's "no cross-match persistence" is about characters, not a results log. */
+const HISTORY_KEY="toltales_history_v1", HISTORY_MAX=50;
+function history(){ try{ const a=JSON.parse(localStorage.getItem(HISTORY_KEY)); return Array.isArray(a)?a:[]; }catch(e){ return []; } }
+function recordMatch(won,byScore){
+  try{
+    const me=G.players.find(p=>p.human) || G.players[0];
+    const row={ at:new Date().toISOString().slice(0,10),
+      house:me.house||"", folk:me.name, world:(WORLDS[G.world]||{}).name||G.world,
+      n:G.N, seats:G.players.length, humans:G.players.filter(p=>p.human).length,
+      diff:G.diff, mode:G.mode, turns:G.turn, score:computeScore(me),
+      result: won? "won" : (me.alive? "ended" : "lost"), byScore:!!byScore,
+      peakLevel: G.cities.filter(c=>c.owner===me.id).reduce((m,c)=>Math.max(m,c.level),0) };
+    const list=history(); list.unshift(row);
+    localStorage.setItem(HISTORY_KEY, JSON.stringify(list.slice(0,HISTORY_MAX)));
+  }catch(e){}
+}
+function renderStats(){
+  const b=el("statsBody"); if(!b) return;
+  const list=history();
+  if(!list.length){
+    b.innerHTML=`<p class="paneNote">No finished tellings yet. Play one through and it will be recorded here — result, score, how long it ran, and how far your capital grew.</p>`;
+    return;
+  }
+  const wins=list.filter(r=>r.result==="won").length;
+  const avg=(f)=>Math.round(list.reduce((s,r)=>s+(r[f]||0),0)/list.length);
+  b.innerHTML=`<div class="field"><label>Tellings</label><b>${list.length}</b></div>
+    <div class="field"><label>Won</label><b>${wins} <span style="color:var(--muted);font-weight:400">(${Math.round(100*wins/list.length)}%)</span></b></div>
+    <div class="field"><label>Average length</label><b>${avg("turns")} turns</b></div>
+    <div class="field"><label>Average score</label><b>${avg("score")}</b></div>
+    <div style="font-weight:800;color:var(--muted);font-size:12px;margin:16px 0 8px;text-align:left">RECENT</div>`
+    + list.slice(0,20).map(r=>`<div class="histRow">
+        <span class="hr ${r.result}">${r.result==="won"?"▲":(r.result==="lost"?"▼":"■")}</span>
+        <span class="ht"><b>${r.house||r.folk}</b><i>${r.world} · ${r.n}² · ${r.seats} seats · ${r.diff} · ${r.mode}${r.byScore?" (score)":""}</i></span>
+        <span class="hs">${r.score}<i>${r.turns}t · L${r.peakLevel}</i></span>
+      </div>`).join("")
+    + `<button class="btn" id="statsClear" style="width:100%;margin-top:12px">Clear history</button>`;
+  el("statsClear").onclick=()=>{ try{ localStorage.removeItem(HISTORY_KEY); }catch(e){} renderStats(); };
+}
+
+/* ---- Lore ([39]) ----
+   LORE is YOUR table — written offline and pasted in; nothing here is invented. Until it has
+   entries the pane renders from data the game already holds (folklores, characters, worlds), so
+   it is useful immediately without putting words in the world's mouth. */
+const LORE=[
+  // { cat:"Folklores", title:"The Lantern Court", body:"…" },
+];
+function renderLore(){
+  const b=el("loreBody"); if(!b) return;
+  let html="";
+  if(LORE.length){
+    const cats=[...new Set(LORE.map(e=>e.cat||"Lore"))];
+    html+=cats.map(c=>`<div class="grp">${c.toUpperCase()}</div>`+
+      LORE.filter(e=>(e.cat||"Lore")===c).map(e=>
+        `<div class="loreCard"><b>${e.title}</b><p>${e.body}</p></div>`).join("")).join("");
+  }
+  html+=`<div class="grp">FOLKLORES</div>`+
+    FOLKLORES.filter(f=>f.playable).map(f=>
+      `<div class="loreCard"><b style="color:${f.color}">${f.name}</b><p>${f.tagline}</p></div>`).join("");
+  html+=`<div class="grp">CHARACTERS</div>`+
+    Object.values(UNITS).map(u=>
+      `<div class="loreCard"><b>${u.icon} ${u.name}</b><p><i>“${u.tagline}”</i><br>${u.sig}<br>
+       <span style="color:var(--muted)">📜${u.cost} · ${u.hp}hp · ${u.atk}atk · ${u.def}def · move ${u.move} · range ${u.range}</span></p></div>`).join("");
+  html+=`<div class="grp">WORLDS</div>`+
+    Object.values(WORLDS).map(w=>
+      `<div class="loreCard"><b>${w.name}</b><p>${w.tagline} — ${w.landPct}% land${w.twist?`, twist: ${w.twist}`:""}.</p></div>`).join("");
+  if(!LORE.length) html+=`<p class="paneNote" style="margin-top:14px">Written lore goes in the LORE table
+    in this file; entries appear above these, grouped by category.</p>`;
+  b.innerHTML=html;
 }
 buildFolkGrid();
 wireSeg("segSize","size",Number); wireSeg("segAI","ai",Number); wireSeg("segMode","mode",String); wireSeg("segWorld","world",String); wireSeg("segDiff","diff",String); wireSeg("segHumans","humans",Number);
+syncSeatLimits();
+refreshNewPane();
 el("btnStart").onclick=()=>{
-  newGame({folklore:sel.folklore,size:sel.size,ai:sel.ai,mode:sel.mode,world:sel.world,diff:sel.diff,humans:sel.humans});
+  newGame({folklore:sel.folklore,size:sel.size,ai:sel.ai,mode:sel.mode,world:sel.world,diff:sel.diff,humans:sel.humans,house:sel.house,rivals:sel.rivals});
   startScreen.classList.remove("on"); el("mClose").style.display="";
   renderHUD(); renderActions(); save();
   toast("Your folklore is founded. Explore!");
   // §2 randomized order: seat 0 may be a CPU or the second human
   const first=G.players[0];
-  if(!first.human){ setTimeout(()=>{ aiTurn(0); if(!G.over) advancePlayer(); },300); }
+  if(!first.human){ setTimeout(async()=>{ await aiTurnPaced(0); if(!G.over) advancePlayer(); },300); }
   else { G.viewer=0; if(multiHuman()) showCurtain(0); renderHUD(); }
 };
 el("curtainGo").onclick=()=>{
   el("curtain").classList.remove("on");
-  centerCameraOn(capitalOf(G.current));
+  centerCameraOn(homeView(G.current));
   renderHUD(); renderActions();
+  drainRewards();          // held back while the curtain was up — right eyes now on the screen
 };
 el("btnContinue").onclick=()=>{ if(loadSave()){ el("mClose").style.display=""; } };
-if(hasSave()) el("btnContinue").style.display="block";
+refreshMenu();      // sets the Resume row's enabled state + the rooms list on first paint
 
 /* online buttons — need the hosted origin for /api */
 const IS_HOSTED=location.protocol==="http:"||location.protocol==="https:";
@@ -2049,6 +3704,7 @@ el("btnHost").onclick=async()=>{
   const res=await API("create",{settings:{...sel}}).catch(()=>null);
   if(!res || res.error){ toast(res? res.error : "Could not create a room"); return; }
   MP.on=true; MP.host=true; MP.code=res.code; MP.token=res.token; MP.version=0; MP.settings={...sel};
+  rememberRoom();
   lobbyLoop();
 };
 el("btnJoin").onclick=()=>{
